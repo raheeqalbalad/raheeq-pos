@@ -1,9 +1,20 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db/db'
 import type { Item } from '../db/types'
 import { formatJod } from '../lib/money'
 import { setItemActive } from '../lib/orders'
+import { isAvailable, scheduleParts } from '../lib/offers'
+
+/** الوقت هلق، بيتحدّث كل دقيقة (عشان العروض تتفعّل وتتوقف لحالها) */
+function useMinute() {
+  const [now, setNow] = useState(() => new Date())
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 60_000)
+    return () => clearInterval(id)
+  }, [])
+  return now
+}
 
 /**
  * أقسام المنيو وأصنافها. إذا في onPick الأصناف بتصير أزرار.
@@ -20,6 +31,7 @@ export default function MenuBrowser({
   canToggle?: boolean
 }) {
   const [toggling, setToggling] = useState(false)
+  const now = useMinute()
   const categories = useLiveQuery(() => db.categories.orderBy('sort').filter((c) => c.active).toArray(), [])
   const [selected, setSelected] = useState<number | null>(null)
   const categoryId = selected ?? categories?.[0]?.id
@@ -65,7 +77,9 @@ export default function MenuBrowser({
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
           {items?.map((item) => {
             const qty = counts?.get(item.id!) ?? 0
-            const disabled = toggling ? false : !item.active || !onPick
+            const available = isAvailable(item, now)
+            const when = scheduleParts(item.schedule)
+            const disabled = toggling ? false : !item.active || !available || !onPick
             return (
               <button
                 key={item.id}
@@ -74,7 +88,7 @@ export default function MenuBrowser({
                 onClick={() => (toggling ? setItemActive(item.id!, !item.active) : onPick?.(item))}
                 className={`relative flex min-h-24 flex-col justify-between rounded-2xl bg-white/70 p-4 text-start shadow-sm ring-1 ring-cream-200 ${
                   item.active ? '' : toggling ? 'bg-red-800/10 ring-red-800/40' : 'opacity-40'
-                } ${!disabled ? 'active:scale-[0.97] active:bg-gold/40' : ''} ${
+                } ${item.active && !available && !toggling ? 'opacity-50' : ''} ${!disabled ? 'active:scale-[0.97] active:bg-gold/40' : ''} ${
                   qty ? 'ring-2 ring-gold' : ''
                 } transition-transform`}
               >
@@ -88,9 +102,19 @@ export default function MenuBrowser({
                     متوقف
                   </span>
                 )}
+                {item.active && !available && (
+                  <span className="absolute top-2 left-2 rounded-md bg-ink/70 px-2 py-0.5 text-xs font-bold text-cream">مش وقته</span>
+                )}
                 <div>
                   <div className="font-bold text-green">{item.name}</div>
                   {item.description && <div className="mt-0.5 text-xs text-ink/60">{item.description}</div>}
+                  {(when.time || when.days) && (
+                    <div className="mt-0.5 text-xs font-medium text-green/80">
+                      🕘 {when.time && <span className="num">{when.time}</span>}
+                      {when.time && when.days && ' · '}
+                      {when.days}
+                    </div>
+                  )}
                 </div>
                 <div className="mt-3 flex items-end justify-between gap-2">
                   <span className="text-xs text-ink/50">{item.options.map((g) => g.name).join(' · ')}</span>

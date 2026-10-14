@@ -157,6 +157,10 @@ export async function buildWorkbook() {
     ])
   }
 
+  // ===== العروض =====
+  const offers: Cell[][] = [['العرض', 'كم انباع', 'المبيعات']]
+  for (const o of report.offers) offers.push([o.name, o.qty, money(o.revenue)])
+
   // ===== الساعات =====
   const hours: Cell[][] = [['الساعة', 'طلبات', 'مبيعات']]
   for (const h of [...report.hours].sort((a, b) => hourOrder(a.hour) - hourOrder(b.hour)))
@@ -181,6 +185,7 @@ export async function buildWorkbook() {
   XLSX.utils.book_append_sheet(wb, sheetFrom(days, [12, 8, 8, 10, 10, 10, 12, 12, 10, 8, 8, 12, 10, 10, 12, 10, 10, 12, 18, 8, 14]), 'أيام الشغل')
   XLSX.utils.book_append_sheet(wb, sheetFrom(drawer, [16, 14, 8, 10, 10, 10]), 'فروقات الدرج')
   XLSX.utils.book_append_sheet(wb, sheetFrom(items, [24, 10, 12, 12, 12, 10]), 'الأصناف')
+  XLSX.utils.book_append_sheet(wb, sheetFrom(offers, [20, 10, 12]), 'العروض')
   XLSX.utils.book_append_sheet(wb, sheetFrom(hours, [10, 10, 12]), 'الساعات')
   XLSX.utils.book_append_sheet(wb, sheetFrom(expenses, [12, 8, 24, 10, 10, 12]), 'المصاريف')
   wb.Workbook = { Views: [{ RTL: true }] }

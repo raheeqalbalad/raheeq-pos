@@ -216,6 +216,17 @@ function ReportBody({ report, mode }: { report: Report; mode: Mode }) {
         </Card>
       </div>
 
+      <Card title="العروض">
+        {report.offers.length ? (
+          <Table
+            head={['العرض', 'كم انباع', 'المبيعات']}
+            rows={report.offers.map((o) => [o.name, String(o.qty), formatJod(o.revenue)])}
+          />
+        ) : (
+          <p className="text-ink/50">ما في عروض</p>
+        )}
+      </Card>
+
       <Card title="الأصناف: الأكثر مبيعًا مقابل الأكثر ربحًا">
         <ItemProfits items={report.items} />
       </Card>

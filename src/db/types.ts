@@ -15,6 +15,8 @@ export interface Category {
   name: string
   sort: number
   active: boolean
+  /** قسم العروض: أصنافه إلها أوقات وأيام، وبتنحسب لحالها بالتقارير */
+  kind?: 'offers'
 }
 
 export interface OptionChoice {
@@ -38,6 +40,18 @@ export interface OptionGroup {
   listId?: string
   /** مع القائمة المشتركة: هل فروق الأسعار بتنطبق على هالصنف؟ */
   applyDeltas?: boolean
+  /** كم واحد بيختار من المجموعة (مثلًا 4 مشروبات بالعرض). فاضي = واحد */
+  pick?: number
+}
+
+/** أوقات وأيام بيع الصنف (للعروض). فاضي = طول الوقت */
+export interface ItemSchedule {
+  /** "09:00" */
+  from?: string
+  /** "12:00" (لحد قبلها) */
+  to?: string
+  /** أيام الأسبوع (0 = الأحد). فاضي = كل يوم */
+  days?: number[]
 }
 
 /** قائمة خيارات مشتركة: تعديلها بيبيّن بكل الأصناف المربوطة فيها. */
@@ -57,6 +71,7 @@ export interface Item {
   cost?: number
   active: boolean
   isSeasonal: boolean
+  schedule?: ItemSchedule
   sort: number
   options: OptionGroup[]
 }
@@ -139,6 +154,8 @@ export interface OrderLine {
   priceSnapshot: number
   /** تكلفة الوحدة وقت البيع (شامل الخيارات). فاضي إذا الصنف ما إله تكلفة وقتها */
   costSnapshot?: number
+  /** الصنف كان عرض وقت البيع */
+  isOffer?: boolean
   qty: number
   options: LineOption[]
   note?: string

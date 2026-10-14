@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db/db'
-import type { Item, OptionChoice, OptionGroup, OptionList } from '../db/types'
+import type { Item, ItemSchedule, OptionChoice, OptionGroup, OptionList } from '../db/types'
+import { scheduleParts, WEEK_DAYS } from '../lib/offers'
 import { addCategory, deleteItem, moveCategory, moveItem, newId, saveItem, saveOptionList, updateCategory } from '../lib/menu'
 import { setItemActive } from '../lib/orders'
 import { formatJod, toFils } from '../lib/money'
@@ -130,6 +131,11 @@ export default function MenuEditorScreen() {
                         .filter(Boolean)
                         .join(' — ')}
                     </div>
+                    {item.schedule && (
+                      <div className="text-xs font-medium text-green/80">
+                        🕘 <span className="num">{scheduleParts(item.schedule).time}</span> {scheduleParts(item.schedule).days}
+                      </div>
+                    )}
                   </button>
                   <span className="flex flex-col items-end">
                     <span className="num font-display text-lg text-green">{formatJod(item.price)}</span>
@@ -204,6 +210,65 @@ function ProfitHint({ price, cost }: { price: number; cost?: number }) {
     <p className={`-mt-2 text-sm font-bold ${profit < 0 ? 'text-red-800' : 'text-green'}`}>
       الربح بالوحدة <span className="num">{formatJod(profit)}</span> (<span className="num">{marginPct(price, cost)}%</span>)
     </p>
+  )
+}
+
+/** أوقات وأيام البيع (للعروض). فاضي = طول الوقت وكل يوم. */
+function ScheduleEditor({ value, onChange }: { value: ItemSchedule; onChange: (s: ItemSchedule) => void }) {
+  const days = value.days ?? []
+  const toggleDay = (d: number) => {
+    const next = days.includes(d) ? days.filter((x) => x !== d) : [...days, d].sort()
+    onChange({ ...value, days: next.length ? next : undefined })
+  }
+  return (
+    <section className="rounded-2xl border border-cream-200 p-3">
+      <h3 className="mb-1 font-bold text-green">أوقات العرض</h3>
+      <p className="mb-3 text-xs text-ink/60">برا هالأوقات والأيام العرض بيطلع «مش وقته» وما بينضاف. فاضي = طول الوقت وكل يوم.</p>
+      <div className="flex flex-wrap items-center gap-2">
+        <label className="flex items-center gap-2">
+          من
+          <input
+            type="time"
+            value={value.from ?? ''}
+            onChange={(e) => onChange({ ...value, from: e.target.value || undefined })}
+            className={`${inputClass} num`}
+          />
+        </label>
+        <label className="flex items-center gap-2">
+          لـ
+          <input
+            type="time"
+            value={value.to ?? ''}
+            onChange={(e) => onChange({ ...value, to: e.target.value || undefined })}
+            className={`${inputClass} num`}
+          />
+        </label>
+        {(value.from || value.to) && (
+          <button
+            type="button"
+            onClick={() => onChange({ ...value, from: undefined, to: undefined })}
+            className="h-12 rounded-xl px-3 text-sm text-ink/60 active:bg-cream-200"
+          >
+            طول الوقت
+          </button>
+        )}
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {WEEK_DAYS.map((name, d) => (
+          <button
+            key={d}
+            type="button"
+            onClick={() => toggleDay(d)}
+            className={`h-12 rounded-xl px-3 text-sm font-medium ${
+              days.includes(d) ? 'bg-green text-cream' : 'bg-cream-200 text-green active:bg-green-100'
+            }`}
+          >
+            {name}
+          </button>
+        ))}
+      </div>
+      <p className="mt-2 text-xs text-ink/50">{days.length ? 'بس بالأيام المختارة' : 'كل يوم (اختار أيام إذا العرض مش كل يوم)'}</p>
+    </section>
   )
 }
 
@@ -345,6 +410,8 @@ function ItemEditor({ initial, onClose }: { initial: Item; onClose: () => void }
   const [categoryId, setCategoryId] = useState(initial.categoryId)
   const [isSeasonal, setIsSeasonal] = useState(initial.isSeasonal)
   const [groups, setGroups] = useState<DraftGroup[]>(toDraft(initial.options))
+  const [schedule, setSchedule] = useState<ItemSchedule>(initial.schedule ?? {})
+  const isOfferCategory = categories?.find((c) => c.id === categoryId)?.kind === 'offers'
   const [editingList, setEditingList] = useState<OptionList | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [error, setError] = useState('')
@@ -356,8 +423,10 @@ function ItemEditor({ initial, onClose }: { initial: Item; onClose: () => void }
     if (!name.trim()) return 'اكتب اسم الصنف'
     if (price.trim() === '' || !(Number(price) >= 0)) return 'اكتب السعر'
     if (cost.trim() !== '' && !(Number(cost) >= 0)) return 'التكلفة مش مزبوطة'
+    if (!!schedule.from !== !!schedule.to) return 'اكتب وقت البداية والنهاية مع بعض'
     for (const g of groups) {
       if (!g.name.trim()) return 'في مجموعة خيارات بدون اسم'
+      if (g.pick !== undefined && !(g.pick >= 1 && g.pick <= 10)) return `«كم واحد» بـ«${g.name}» لازم بين 1 و10`
       if (!g.listId) {
         const problem = choicesProblem(g.name, g.choices)
         if (problem) return problem
@@ -377,8 +446,10 @@ function ItemEditor({ initial, onClose }: { initial: Item; onClose: () => void }
       categoryId,
       isSeasonal,
       description: description.trim() || undefined,
+      schedule: schedule.from || schedule.days?.length ? schedule : undefined,
       options: groups.map(({ choices, ...g }) => ({
         ...g,
+        pick: g.pick && g.pick > 1 ? g.pick : undefined,
         name: g.name.trim(),
         choices: g.listId ? [] : fromDraftChoices(choices),
       })),
@@ -430,6 +501,8 @@ function ItemEditor({ initial, onClose }: { initial: Item; onClose: () => void }
           </label>
         </div>
 
+        {(isOfferCategory || initial.schedule) && <ScheduleEditor value={schedule} onChange={setSchedule} />}
+
         {/* الخيارات */}
         <section className="rounded-2xl border border-cream-200 p-3">
           <h3 className="mb-1 font-bold text-green">الخيارات</h3>
@@ -449,6 +522,16 @@ function ItemEditor({ initial, onClose }: { initial: Item; onClose: () => void }
                       placeholder="اسم المجموعة (مثلًا: النكهة)"
                       className={`${inputClass} flex-1 font-bold`}
                     />
+                    <label className="flex shrink-0 items-center gap-1 text-sm text-ink/70">
+                      كم واحد
+                      <input
+                        value={g.pick ?? 1}
+                        onChange={(e) => updateGroup(gi, { pick: Number(e.target.value.replace(/\D/g, '').slice(0, 2)) || undefined })}
+                        inputMode="numeric"
+                        aria-label="كم واحد بيختار"
+                        className={`${inputClass} num w-14 text-center`}
+                      />
+                    </label>
                     <button
                       type="button"
                       onClick={() => setGroups((gs) => gs.filter((_, i) => i !== gi))}

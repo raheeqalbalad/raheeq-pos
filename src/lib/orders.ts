@@ -82,7 +82,8 @@ export async function addItem(
   staffId: number,
 ): Promise<number> {
   const id = orderId ?? (await openOrder(target, staffId))
-  await db.transaction('rw', 'orderLines', async () => {
+  await db.transaction('rw', ['orderLines', 'categories'], async () => {
+    const isOffer = (await db.categories.get(item.categoryId))?.kind === 'offers'
     const existing = await db.orderLines
       .where('orderId')
       .equals(id)
@@ -98,6 +99,7 @@ export async function addItem(
       nameSnapshot: item.name,
       priceSnapshot: item.price + options.reduce((s, o) => s + o.priceDelta, 0),
       ...(item.cost !== undefined ? { costSnapshot: item.cost + options.reduce((s, o) => s + (o.costDelta ?? 0), 0) } : {}),
+      ...(isOffer ? { isOffer: true } : {}),
       qty: 1,
       options,
       createdAt: Date.now(),

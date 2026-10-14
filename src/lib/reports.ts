@@ -1,6 +1,7 @@
 import { db } from '../db/db'
 import type { Expense, ExpenseSource, Item, Order, OrderLine, OptionList, Shift } from '../db/types'
 import { resolveGroups } from './options'
+import { splitPicked } from './offers'
 import { expectedCashOf, expenseSource, withdrawnOf } from './shift'
 import { getCliqSettings, isStaffCliq, splitCliq, type CliqSplitRow } from './cliq'
 
@@ -115,7 +116,10 @@ function lineUnitCost(l: OrderLine, items: Map<number, Item>, lists: Map<string,
   const groups = resolveGroups(item, lists)
   return (
     item.cost +
-    l.options.reduce((s, o) => s + (groups.find((g) => g.id === o.groupId)?.choices.find((c) => c.name === o.choice)?.costDelta ?? 0), 0)
+    l.options.reduce((s, o) => {
+      const [name, n] = splitPicked(o.choice)
+      return s + n * (groups.find((g) => g.id === o.groupId)?.choices.find((c) => c.name === name)?.costDelta ?? 0)
+    }, 0)
   )
 }
 
@@ -125,6 +129,12 @@ export interface HourRow {
   sales: number
   /** عدد الزباين المسجّل بهالساعة */
   guests: number
+}
+
+export interface OfferRow {
+  name: string
+  qty: number
+  revenue: number
 }
 
 export interface ManualDiscountRow {
@@ -160,6 +170,8 @@ export interface Report {
   /** الكليك حسب الحساب */
   cliqSplit: CliqSplitRow[]
   manualDiscounts: ManualDiscountRow[]
+  /** كل عرض كم انباع (والعروض الحالية اللي ما انباعت كمان) */
+  offers: OfferRow[]
   /** فروقات الدرج لكل موظف بكل شهر */
   drawerByStaff: DrawerStaffRow[]
   days: DayRow[]
@@ -336,6 +348,19 @@ export async function buildReport(shifts: Shift[]): Promise<Report> {
   }
   const items = [...itemMap.values()].sort((a, b) => b.qty - a.qty || b.revenue - a.revenue)
 
+  // العروض: اللي انباع، والعروض الحالية اللي ما انباعت (صفر)
+  const offerCategories = new Set((await db.categories.toArray()).filter((c) => c.kind === 'offers').map((c) => c.id!))
+  const offerMap = new Map<string, OfferRow>()
+  for (const i of menuItems) if (offerCategories.has(i.categoryId)) offerMap.set(i.name, { name: i.name, qty: 0, revenue: 0 })
+  for (const l of lines) {
+    if (!l.isOffer) continue
+    const row = offerMap.get(l.nameSnapshot) ?? { name: l.nameSnapshot, qty: 0, revenue: 0 }
+    row.qty += l.qty
+    row.revenue += l.qty * l.priceSnapshot
+    offerMap.set(l.nameSnapshot, row)
+  }
+  const offers = [...offerMap.values()].sort((a, b) => b.qty - a.qty)
+
   // الساعات
   const orderTotal = new Map<number, number>()
   for (const l of lines) orderTotal.set(l.orderId, (orderTotal.get(l.orderId) ?? 0) + l.qty * l.priceSnapshot)
@@ -399,6 +424,7 @@ export async function buildReport(shifts: Shift[]): Promise<Report> {
     cancellations,
     cliqSplit: splitCliq(counted, await getCliqSettings()),
     manualDiscounts,
+    offers,
     drawerByStaff,
     days,
     months,
