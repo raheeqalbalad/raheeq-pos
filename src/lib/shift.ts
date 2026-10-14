@@ -26,9 +26,16 @@ export async function openShift(staffId: number, openingCash: number): Promise<n
   })
 }
 
-export async function closeShift(shiftId: number, closedBy: number, countedCash: number) {
-  await db.shifts.update(shiftId, { closedAt: Date.now(), closedBy, countedCash })
+export async function closeShift(shiftId: number, closedBy: number, countedCash: number, leftInDrawer: number) {
+  await db.shifts.update(shiftId, { closedAt: Date.now(), closedBy, countedCash, leftInDrawer })
 }
+
+/** اللي انترك بالدرج (الشيفتات القديمة قبل هالخانة: كل المعدود). */
+export const leftInDrawerOf = (s: Shift) => s.leftInDrawer ?? s.countedCash
+
+/** المسحوب من الدرج عند التسكير = المعدود − المتروك. */
+export const withdrawnOf = (s: Shift) =>
+  s.countedCash === undefined ? undefined : s.countedCash - (leftInDrawerOf(s) ?? s.countedCash)
 
 export interface ShiftSummary {
   cash: number

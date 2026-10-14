@@ -8,6 +8,7 @@ import { db } from './db/db'
 import ReportsScreen from './screens/ReportsScreen'
 import InventoryScreen from './screens/InventoryScreen'
 import MenuEditorScreen from './screens/MenuEditorScreen'
+import UsersScreen from './screens/UsersScreen'
 import TablesScreen, { type OpenRequest } from './screens/TablesScreen'
 import OrderScreen from './screens/OrderScreen'
 import OpenShiftScreen from './screens/OpenShiftScreen'
@@ -106,6 +107,7 @@ export default function App() {
       {view === 'close' && <CloseShiftScreen shift={shift} onClosed={setJustClosed} />}
       {view === 'reports' && owner && <ReportsScreen />}
       {view === 'menu' && owner && <MenuEditorScreen />}
+      {view === 'users' && owner && <UsersScreen />}
     </div>
   )
 }

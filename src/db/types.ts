@@ -137,6 +137,8 @@ export interface Shift {
   closedAt?: number
   closedBy?: number
   countedCash?: number
+  /** اللي انترك بالدرج للشيفت الجاي. الباقي (المعدود − المتروك) انسحب. */
+  leftInDrawer?: number
 }
 
 /**

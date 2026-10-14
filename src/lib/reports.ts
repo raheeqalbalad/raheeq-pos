@@ -1,6 +1,6 @@
 import { db } from '../db/db'
 import type { Expense, ExpenseSource, Order, OrderLine, Shift } from '../db/types'
-import { expenseSource } from './shift'
+import { expenseSource, withdrawnOf } from './shift'
 
 // «يوم الشغل» = شيفت (من فتحه لتسكيره)، مش اليوم بالتقويم.
 // بيع بعد نص الليل بينحسب على نفس يوم الشغل، والشهر بيتحدد من تاريخ فتح الشيفت.
@@ -56,6 +56,8 @@ export interface DayRow extends Totals {
   shift: Shift
   /** الكاش المعدود ناقص المفروض (للشيفتات المسكّرة) */
   drawerDiff?: number
+  /** المسحوب من الدرج عند التسكير */
+  withdrawn?: number
 }
 
 export interface MonthRow extends Totals {
@@ -164,6 +166,7 @@ export async function buildReport(shifts: Shift[]): Promise<Report> {
     // فرق الدرج بمصاريف الدرج بس
     if (d.shift.countedCash !== undefined) {
       d.drawerDiff = d.shift.countedCash - (d.shift.openingCash + d.cash - d.expenses)
+      d.withdrawn = withdrawnOf(d.shift)
     }
   }
   days.sort((a, b) => b.shift.openedAt - a.shift.openedAt)

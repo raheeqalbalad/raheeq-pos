@@ -2,7 +2,7 @@ import type { WorkSheet } from 'xlsx'
 import { db } from '../db/db'
 import { allShifts, buildReport, hourLabel, hourOrder, MONTHS } from './reports'
 import { timeLabelOf } from './time'
-import { expenseSource } from './shift'
+import { expenseSource, leftInDrawerOf } from './shift'
 
 // التصدير بيمشي مع أعمدة شيت الحسابات الشهري («الحساب»):
 // A الشهر · B الدخل · C المصاريف =SUM(H:K) · D الضمان · E الصافي =B-C-D · F تفصيل · H أغراض ومصاريف · I رواتب · J كهربا · K مي
@@ -107,7 +107,7 @@ export async function buildWorkbook() {
 
   // ===== أيام الشغل =====
   const days: Cell[][] = [
-    ['يوم الشغل', 'فتح', 'تسكير', 'كاش', 'كليك', 'الدخل', 'مصاريف الدرج', 'من برا الدرج', 'الصافي', 'طلبات', 'ملغي', 'كاش البداية', 'المعدود', 'فرق الدرج'],
+    ['يوم الشغل', 'فتح', 'تسكير', 'كاش', 'كليك', 'الدخل', 'مصاريف الدرج', 'من برا الدرج', 'الصافي', 'طلبات', 'ملغي', 'كاش البداية', 'المعدود', 'فرق الدرج', 'تركت بالدرج', 'المسحوب'],
   ]
   for (const d of [...report.days].reverse()) {
     const s = d.shift
@@ -127,6 +127,8 @@ export async function buildWorkbook() {
       money(s.openingCash),
       s.countedCash !== undefined ? money(s.countedCash) : null,
       d.drawerDiff !== undefined ? money(d.drawerDiff, MONEY_SIGNED) : null,
+      s.closedAt && leftInDrawerOf(s) !== undefined ? money(leftInDrawerOf(s)!) : null,
+      d.withdrawn !== undefined ? money(d.withdrawn) : null,
     ])
   }
 
@@ -155,7 +157,7 @@ export async function buildWorkbook() {
 
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, wsHisab, 'الحساب')
-  XLSX.utils.book_append_sheet(wb, sheetFrom(days, [12, 8, 8, 10, 10, 10, 12, 12, 10, 8, 8, 12, 10, 10]), 'أيام الشغل')
+  XLSX.utils.book_append_sheet(wb, sheetFrom(days, [12, 8, 8, 10, 10, 10, 12, 12, 10, 8, 8, 12, 10, 10, 12, 10]), 'أيام الشغل')
   XLSX.utils.book_append_sheet(wb, sheetFrom(items, [24, 10, 12]), 'الأصناف')
   XLSX.utils.book_append_sheet(wb, sheetFrom(hours, [10, 10, 12]), 'الساعات')
   XLSX.utils.book_append_sheet(wb, sheetFrom(expenses, [12, 8, 24, 10, 10, 12]), 'المصاريف')

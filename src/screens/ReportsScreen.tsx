@@ -200,7 +200,7 @@ function ReportBody({ report, mode }: { report: Report; mode: Mode }) {
       {mode !== 'day' && (
         <Card title="دخل كل يوم شغل">
           <Table
-            head={['اليوم', 'كاش', 'كليك', 'الدخل', 'مصاريف', 'الصافي', 'فرق الدرج']}
+            head={['اليوم', 'كاش', 'كليك', 'الدخل', 'مصاريف', 'الصافي', 'فرق الدرج', 'المسحوب']}
             rows={report.days.map((d) => [
               `${dayLabel(d.shift.openedAt)}${d.shift.closedAt ? '' : ' (مفتوح)'}`,
               formatJod(d.cash),
@@ -209,6 +209,7 @@ function ReportBody({ report, mode }: { report: Report; mode: Mode }) {
               formatJod(d.expenses + d.outside),
               formatJod(d.net),
               d.drawerDiff === undefined ? '—' : d.drawerDiff === 0 ? '✓' : `${d.drawerDiff > 0 ? '+' : '−'}${formatJod(Math.abs(d.drawerDiff))}`,
+              d.withdrawn === undefined ? '—' : formatJod(d.withdrawn),
             ])}
           />
         </Card>

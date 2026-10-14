@@ -3,6 +3,7 @@ import { db } from '../db/db'
 import type { Role } from '../db/types'
 import { ROLE_LABEL } from '../lib/session'
 import Logo from '../components/Logo'
+import { isWeakPin } from '../lib/users'
 
 interface Row {
   role: Role
@@ -37,7 +38,7 @@ export default function SetupScreen() {
     }
     const pins = used.map((r) => r.pin)
     if (new Set(pins).size !== pins.length) return 'كل واحد لازم يكون إله رمز مختلف'
-    if (pins.some((p) => /^(\d)\1{3}$/.test(p) || p === '1234')) return 'اختار رموز أصعب من 1111 أو 1234'
+    if (pins.some(isWeakPin)) return 'اختار رموز أصعب من 1111 أو 1234'
     return ''
   }
 

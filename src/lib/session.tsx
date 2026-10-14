@@ -1,4 +1,5 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+import { createContext, useContext, useState, type ReactNode } from 'react'
+import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db/db'
 import type { User } from '../db/types'
 
@@ -13,24 +14,19 @@ interface Session {
 const SessionContext = createContext<Session | null>(null)
 
 export function SessionProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null)
-  const [ready, setReady] = useState(false)
-
-  useEffect(() => {
-    let id: number | null = null
+  const [userId, setUserId] = useState<number | null>(() => {
     try {
-      id = Number(localStorage.getItem(KEY)) || null
+      return Number(localStorage.getItem(KEY)) || null
     } catch {
-      /* التخزين ممنوع: بنرجع لشاشة الدخول */
+      return null // التخزين ممنوع: بنرجع لشاشة الدخول
     }
-    ;(id ? db.users.get(id) : Promise.resolve(undefined)).then((u) => {
-      if (u?.active) setUser(u)
-      setReady(true)
-    })
-  }, [])
+  })
+  // المستخدم بيتحدّث لحاله (اسم أو صلاحية تغيّرت). إذا انوقف، بيطلع من الحساب.
+  const stored = useLiveQuery(async () => (userId ? ((await db.users.get(userId)) ?? null) : null), [userId])
+  const user = stored?.active ? stored : null
 
   const login = (u: User) => {
-    setUser(u)
+    setUserId(u.id!)
     try {
       localStorage.setItem(KEY, String(u.id))
     } catch {
@@ -39,7 +35,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }
 
   const logout = () => {
-    setUser(null)
+    setUserId(null)
     try {
       localStorage.removeItem(KEY)
     } catch {
@@ -47,7 +43,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  if (!ready) return null
+  if (stored === undefined) return null
   return <SessionContext.Provider value={{ user, login, logout }}>{children}</SessionContext.Provider>
 }
 

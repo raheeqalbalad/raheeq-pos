@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { lastClosedShift, openShift } from '../lib/shift'
+import { lastClosedShift, leftInDrawerOf, openShift } from '../lib/shift'
 import { formatJod, toFils } from '../lib/money'
 import { useSession } from '../lib/session'
 import Header from '../components/Header'
@@ -9,14 +9,15 @@ import MoneyInput from '../components/MoneyInput'
 export default function OpenShiftScreen({ onReports }: { onReports?: () => void }) {
   const { user } = useSession()
   const [cash, setCash] = useState('')
-  const [lastCounted, setLastCounted] = useState<number>()
+  const [lastLeft, setLastLeft] = useState<number>()
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
     lastClosedShift().then((s) => {
-      if (s?.countedCash !== undefined) {
-        setLastCounted(s.countedCash)
-        setCash(formatJod(s.countedCash))
+      const left = s && leftInDrawerOf(s)
+      if (left !== undefined) {
+        setLastLeft(left)
+        setCash(formatJod(left))
       }
     })
   }, [])
@@ -35,9 +36,9 @@ export default function OpenShiftScreen({ onReports }: { onReports?: () => void 
           <h1 className="mb-1 font-display text-2xl text-green">فتح الشيفت</h1>
           <p className="mb-5 text-ink/60">قديش في كاش بالدرج هلق؟</p>
           <MoneyInput value={cash} onChange={setCash} autoFocus />
-          {lastCounted !== undefined && (
+          {lastLeft !== undefined && (
             <p className="mt-2 text-sm text-ink/50">
-              الشيفت اللي قبل تسكّر على <span className="num">{formatJod(lastCounted)}</span>
+              الشيفت اللي قبل ترك بالدرج <span className="num">{formatJod(lastLeft)}</span>
             </p>
           )}
           <button

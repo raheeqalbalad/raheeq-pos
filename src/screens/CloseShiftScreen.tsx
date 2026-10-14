@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db/db'
 import type { Shift } from '../db/types'
-import { closeShift, shiftSummary, type ShiftSummary } from '../lib/shift'
+import { closeShift, leftInDrawerOf, shiftSummary, withdrawnOf, type ShiftSummary } from '../lib/shift'
 import { formatJod, toFils } from '../lib/money'
 import { useSession } from '../lib/session'
 import { timeLabel } from '../components/PaymentsList'
@@ -84,9 +84,27 @@ function Difference({ diff }: { diff: number }) {
   )
 }
 
+const DEFAULT_LEFT = '10.00'
+
+function WithdrawRow({ left, withdrawn }: { left: number; withdrawn: number }) {
+  return (
+    <div className="mt-3 grid grid-cols-2 gap-2 text-center">
+      <div className="rounded-xl bg-cream-200 p-3">
+        <div className="text-sm text-ink/60">بيضل بالدرج</div>
+        <div className="num font-display text-2xl text-green">{formatJod(left)}</div>
+      </div>
+      <div className="rounded-xl bg-green p-3 text-cream">
+        <div className="text-sm opacity-70">المسحوب</div>
+        <div className="num font-display text-2xl text-gold">{formatJod(withdrawn)}</div>
+      </div>
+    </div>
+  )
+}
+
 export default function CloseShiftScreen({ shift, onClosed }: { shift: Shift; onClosed: (id: number) => void }) {
   const { user } = useSession()
   const [counted, setCounted] = useState('')
+  const [left, setLeft] = useState(DEFAULT_LEFT)
   const [confirming, setConfirming] = useState(false)
   const summary = useLiveQuery(() => shiftSummary(shift), [shift])
   const openOrders = useLiveQuery(() => db.orders.where('status').equals('open').toArray(), [])
@@ -94,9 +112,13 @@ export default function CloseShiftScreen({ shift, onClosed }: { shift: Shift; on
   if (!summary) return null
   const countedFils = toFils(counted || 0)
   const diff = countedFils - summary.expectedCash
+  const leftFils = toFils(left || 0)
+  const leftValid = left !== '' && leftFils <= countedFils
+  const withdrawn = countedFils - leftFils
 
   async function close() {
-    await closeShift(shift.id!, user!.id!, countedFils)
+    if (!leftValid) return
+    await closeShift(shift.id!, user!.id!, countedFils, leftFils)
     onClosed(shift.id!)
   }
 
@@ -117,13 +139,27 @@ export default function CloseShiftScreen({ shift, onClosed }: { shift: Shift; on
           <p className="mb-3 text-ink/60">عدّ الكاش اللي بالدرج واكتبه هون</p>
           <MoneyInput value={counted} onChange={setCounted} />
           {counted !== '' && (
-            <div className="mt-3">
-              <Difference diff={diff} />
-            </div>
+            <>
+              <div className="mt-3">
+                <Difference diff={diff} />
+              </div>
+              <label className="mt-5 block">
+                <span className="mb-1 block font-display text-xl text-green">كم تركت بالدرج للشيفت الجاي؟</span>
+                <span className="mb-2 block text-ink/60">الشيفت الجاي بيفتح بهاد المبلغ، والباقي بينحسب مسحوب.</span>
+                <MoneyInput value={left} onChange={setLeft} />
+              </label>
+              {leftValid ? (
+                <WithdrawRow left={leftFils} withdrawn={withdrawn} />
+              ) : (
+                <p className="mt-2 font-bold text-red-700">
+                  {left === '' ? 'اكتب كم تركت (حتى لو صفر)' : 'المتروك ما بصير يكون أكثر من المعدود'}
+                </p>
+              )}
+            </>
           )}
           <button
             type="button"
-            disabled={counted === ''}
+            disabled={counted === '' || !leftValid}
             onClick={() => setConfirming(true)}
             className="mt-4 h-14 w-full rounded-2xl bg-gold text-lg font-bold text-green active:bg-gold-600 disabled:opacity-40"
           >
@@ -135,8 +171,9 @@ export default function CloseShiftScreen({ shift, onClosed }: { shift: Shift; on
       {confirming && (
         <Sheet title="تسكير الشيفت؟" onClose={() => setConfirming(false)}>
           <p className="mb-4 text-ink/70">
-            الكاش المعدود <span className="num font-bold">{formatJod(countedFils)}</span>. بعد التسكير ما بتقدر تبيع لحد ما
-            ينفتح شيفت جديد.
+            الكاش المعدود <span className="num font-bold">{formatJod(countedFils)}</span>، متروك للشيفت الجاي{' '}
+            <span className="num font-bold">{formatJod(leftFils)}</span>، ومسحوب <span className="num font-bold">{formatJod(withdrawn)}</span>.
+            بعد التسكير ما بتقدر تبيع لحد ما ينفتح شيفت جديد.
           </p>
           <div className="grid grid-cols-2 gap-3">
             <button type="button" onClick={() => setConfirming(false)} className="h-14 rounded-xl bg-cream-200 font-bold text-green">
@@ -171,6 +208,14 @@ export function ClosedShiftScreen({ shiftId, onDone }: { shiftId: number; onDone
           </h1>
           <SummaryCard shift={shift} summary={summary} />
           <Difference diff={(shift.countedCash ?? 0) - summary.expectedCash} />
+          <section className="rounded-3xl bg-white/70 p-5 ring-1 ring-cream-200">
+            <h2 className="mb-2 font-display text-xl text-green">تسليم الدرج</h2>
+            <div className="divide-y divide-cream-200">
+              <Row label="المعدود" value={shift.countedCash ?? 0} />
+              <Row label="تركت للشيفت الجاي" value={leftInDrawerOf(shift) ?? 0} />
+              <Row label="المسحوب" value={withdrawnOf(shift) ?? 0} strong />
+            </div>
+          </section>
           <button
             type="button"
             onClick={onDone}

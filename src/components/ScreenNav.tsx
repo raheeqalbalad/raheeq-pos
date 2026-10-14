@@ -1,4 +1,4 @@
-export type View = 'tables' | 'history' | 'expenses' | 'stock' | 'close' | 'reports' | 'menu'
+export type View = 'tables' | 'history' | 'expenses' | 'stock' | 'close' | 'reports' | 'menu' | 'users'
 
 const ITEMS: { view: View; label: string }[] = [
   { view: 'tables', label: 'الطاولات' },
@@ -8,10 +8,11 @@ const ITEMS: { view: View; label: string }[] = [
   { view: 'close', label: 'تسكير الشيفت' },
   { view: 'reports', label: 'التقارير' },
   { view: 'menu', label: 'المنيو' },
+  { view: 'users', label: 'المستخدمين' },
 ]
 
 /** تبويبات المالك بس */
-const OWNER_ONLY: View[] = ['reports', 'menu']
+const OWNER_ONLY: View[] = ['reports', 'menu', 'users']
 
 /** تبويبات الشاشات الرئيسية تحت الهيدر. */
 export default function ScreenNav({
