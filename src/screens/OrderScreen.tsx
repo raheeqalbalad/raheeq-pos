@@ -369,6 +369,9 @@ export default function OrderScreen({ orderId: initialId, target, title, onDone,
                 await refreshLoyaltyDiscount(id)
                 await refreshManualDiscount(id)
               }
+            } catch {
+              // ما نسكت عن الغلط: الموظف لازم يعرف إنه المي ما انضافت
+              flash('ما انحفظ عدد الزباين والمي، جرّب كمان مرة من زر 👥')
             } finally {
               savingGuests.current = false
             }
