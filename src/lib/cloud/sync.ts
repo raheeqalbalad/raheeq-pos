@@ -99,10 +99,25 @@ function watchChanges() {
     // بس تغييرات قاعدة البيع: كتابة المزامنة على قاعدتها (الحالة والبصمات) ما لازم تصحّيها من جديد،
     // وإلا بتصير حلقة كل ثانية
     if (!changed) return
+    lastChangeAt = Date.now()
     notifyState()
-    // كل تغيير بيطلع تقريبًا فورًا (ثانية لنجمّع الكبسات ورا بعض)
-    schedule(1_000)
+    // ما بنرفع مع كل كبسة: بنرفع لما تخلص مجموعة الأوامر (syncSoon من التنقّل بين الشاشات)،
+    // وإذا مرّت دقيقة بدون حركة وفي اشي ما انرفع، بنرفعه
+    schedule(IDLE_SYNC_MS)
   })
+}
+
+/** دقيقة بدون أي تغيير = بنرفع اللي فات */
+const IDLE_SYNC_MS = 60_000
+let lastChangeAt = 0
+
+/**
+ * خلصت مجموعة أوامر (رجع للطاولات، دفع، سكّر شيفت، طلع...): بنرفع هلق بدل ما نستنى.
+ * على أي جهاز مش تابلت مربوط ما بتعمل إشي.
+ */
+export function syncSoon() {
+  if (deviceMode() !== 'cafe' || !started) return
+  schedule(500)
 }
 
 // ===== مؤشر التابلت: ✓ مرفوع أو ⏳ مستني =====
@@ -226,7 +241,17 @@ export function syncNow(): Promise<void> {
  * طلبات التعديل اللي بعتها المالك من بعيد (المنيو والأسعار والإعدادات): التابلت بيطبّقها عنده،
  * والرفع العادي بيرجّعها للسحابة. التطبيق آمن يتكرر لو انقطع النت بالنص.
  */
+const APPLIED_KEY = 'remote-applied'
+
+async function appliedLocally(): Promise<number[]> {
+  return ((await syncDb.meta.get(APPLIED_KEY))?.value as number[] | undefined) ?? []
+}
+
 async function applyRemoteEdits() {
+  // اللي طبّقناه قبل وما قدرنا نعلّم عليه بالسحابة (النت قطع): بنعلّم بس، ما بنرجع نكتب
+  const pendingMarks = await appliedLocally()
+  if (pendingMarks.length) await markApplied(pendingMarks)
+
   const { data, error } = await cloud()
     .from('remote_edits')
     .select('id,tbl,rec_id,data,deleted')
@@ -238,7 +263,10 @@ async function applyRemoteEdits() {
     if (/remote_edits|schema cache/i.test(error.message)) return
     throw new Error(cloudError(error.message))
   }
-  const edits = (data ?? []) as { id: number; tbl: string; rec_id: string; data: Record<string, unknown> | null; deleted: boolean }[]
+  const done = new Set(await appliedLocally())
+  const edits = ((data ?? []) as { id: number; tbl: string; rec_id: string; data: Record<string, unknown> | null; deleted: boolean }[]).filter(
+    (e) => !done.has(e.id),
+  )
   if (!edits.length) return
   const tables = new Map(db.tables.map((t) => [t.name, t]))
   await db.transaction('rw', [...REMOTE_EDITABLE].map((n) => tables.get(n)!), async () => {
@@ -247,18 +275,26 @@ async function applyRemoteEdits() {
       if (!table || !REMOTE_EDITABLE.has(e.tbl)) continue
       const keyPath = table.schema.primKey.keyPath as string
       const key = table.schema.primKey.auto ? Number(e.rec_id) : e.rec_id
-      if (e.deleted) await table.delete(key)
-      else if (e.data && String(e.data[keyPath]) === e.rec_id) await table.put(e.data)
+      const current = await table.get(key)
+      if (e.deleted) {
+        if (current) await table.delete(key)
+      } else if (e.data && String(e.data[keyPath]) === e.rec_id && JSON.stringify(current) !== JSON.stringify(e.data)) {
+        // بس إذا في تغيير فعلًا (كتابة نفس الإشي بتصحّي الشاشات والمزامنة على الفاضي)
+        await table.put(e.data)
+      }
     }
   })
-  const { error: markError } = await cloud()
-    .from('remote_edits')
-    .update({ applied_at: new Date().toISOString() })
-    .in(
-      'id',
-      edits.map((e) => e.id),
-    )
-  if (markError) throw new Error(cloudError(markError.message))
+  // انطبّقوا: بنحفظهم عنا أول، عشان لو التعليم بالسحابة فشل ما نرجع نطبّقهم كل ثانية
+  await syncDb.meta.put({ key: APPLIED_KEY, value: [...done, ...edits.map((e) => e.id)] })
+  await markApplied(edits.map((e) => e.id))
+}
+
+/** بيعلّم بالسحابة إنه التابلت طبّق هالتعديلات، وبيشيلهم من القائمة المحلية. */
+async function markApplied(ids: number[]) {
+  const { error } = await cloud().from('remote_edits').update({ applied_at: new Date().toISOString() }).in('id', ids)
+  if (error) throw new Error(cloudError(error.message))
+  const left = (await appliedLocally()).filter((id) => !ids.includes(id))
+  await syncDb.meta.put({ key: APPLIED_KEY, value: left })
 }
 
 function schedule(ms: number) {
@@ -274,8 +310,10 @@ export function startSync() {
   started = true
   watchChanges()
   window.addEventListener('online', () => schedule(1_000))
-  // كل 30 ثانية: بيرفع اللي فات، وبيجيب تعديلات المالك من بعيد
-  setInterval(() => void syncNow(), 30_000)
+  // كل 30 ثانية: بيجيب تعديلات المالك من بعيد وبيرفع اللي فات، بس مش بنص شغل (لازم 20 ثانية بدون تغيير)
+  setInterval(() => {
+    if (Date.now() - lastChangeAt > 20_000) void syncNow()
+  }, 30_000)
   schedule(2_000)
 }
 

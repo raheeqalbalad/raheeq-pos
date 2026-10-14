@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useSession } from './lib/session'
 import { getOpenShift } from './lib/shift'
@@ -24,6 +24,7 @@ import { EmailLoginScreen, ViewerApp } from './screens/CloudScreens'
 import { useDeviceMode } from './lib/cloud/useDeviceMode'
 import { cloudConfigured } from './lib/cloud/config'
 import { useKeepScreenOn } from './lib/wakeLock'
+import { syncSoon } from './lib/cloud/sync'
 
 export default function App() {
   const { user } = useSession()
@@ -33,6 +34,8 @@ export default function App() {
   // طول ما في شيفت مفتوح الشاشة ما بتطفي (حتى على شاشة الرمز)، وبعد التسكير بترجع تطفي عادي
   const shiftOpen = useLiveQuery(async () => mode !== 'viewer' && !!(await getOpenShift()), [mode])
   useKeepScreenOn(!!shiftOpen)
+  // خلصت مجموعة أوامر (دخول/خروج): بنرفع للسحابة هلق
+  useEffect(() => syncSoon(), [user?.id])
 
   // دخول بالإيميل من بعيد (تلفون أو لابتوب): نسخة من السحابة، بدون رموز
   if (cloudConfigured && mode === 'viewer') return <ViewerApp />
@@ -56,6 +59,8 @@ function SignedIn() {
   const [open, setOpen] = useState<OpenRequest | null>(null)
   const [message, setMessage] = useState<string>()
   const [justClosed, setJustClosed] = useState<number | null>(null)
+  // كل ما يتنقّل بين الشاشات (رجع من طلب، دفع، سكّر شيفت...) = خلصت مجموعة أوامر، فبنرفع
+  useEffect(() => syncSoon(), [view, open, justClosed, shift?.id])
 
   const owner = user.role === 'owner'
 

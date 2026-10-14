@@ -114,7 +114,7 @@ function StatusBar() {
           title={sync.error || (waiting ? 'في تغييرات مستنية رفع للسحابة' : 'كل إشي مرفوع للسحابة')}
           className={waiting ? 'font-bold text-gold' : 'opacity-80'}
         >
-          {waiting ? (sync.error ? '⏳ مش مرفوع' : '⏳ بيرفع') : '✓ مرفوع'}
+          {waiting ? (sync.error ? '⏳ مش مرفوع' : '⏳ مستني يرفع') : '✓ مرفوع'}
           {status?.lastSyncAt ? (
             <>
               {' '}
