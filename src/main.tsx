@@ -10,6 +10,8 @@ import { backfillMissingWater, cleanupExtraWater } from './lib/water'
 import { cloudConfigured } from './lib/cloud/config'
 import { deviceMode } from './lib/cloud/device'
 import { installRemoteEdits } from './lib/cloud/remote'
+import { installErrorLog, watchFreezes } from './lib/errorLog'
+import { syncState } from './lib/cloud/sync'
 import { SessionProvider } from './lib/session'
 import { db } from './db/db'
 import { ErrorBoundary, RecoveryScreen } from './components/Recovery'
@@ -21,6 +23,11 @@ if (import.meta.env.DEV) Object.assign(window, { db })
 
 // قبل أول استعمال للقاعدة: الدخول بالإيميل من بعيد بيحوّل تعديلات المالك لطلبات للتابلت، وبيمنع غيرها
 installRemoteEdits()
+installErrorLog()
+watchFreezes(() => {
+  const s = syncState.get()
+  return `مزامنة: ${s.pending ? 'شغّالة/مستنية' : 'لا'}${s.error ? ` (${s.error})` : ''} · ${document.visibilityState}`
+})
 
 // نسخة تانية من التطبيق (أحدث) فتحت القاعدة: هاي النسخة القديمة بتعيد تحميل حالها
 db.on('versionchange', () => {

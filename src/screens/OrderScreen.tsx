@@ -29,6 +29,7 @@ import { refreshManualDiscount } from '../lib/discounts'
 import { useOwnerGate } from '../lib/useOwnerGate'
 import { setGuestsWithWater } from '../lib/water'
 import DeleteOrderButton from '../components/DeleteOrderButton'
+import { logError } from '../lib/errorLog'
 import CoalSheet, { useNow } from '../components/CoalSheet'
 import { coalDue, getFloorSettings } from '../lib/floor'
 
@@ -369,8 +370,9 @@ export default function OrderScreen({ orderId: initialId, target, title, onDone,
                 await refreshLoyaltyDiscount(id)
                 await refreshManualDiscount(id)
               }
-            } catch {
+            } catch (e) {
               // ما نسكت عن الغلط: الموظف لازم يعرف إنه المي ما انضافت
+              logError(`المي وعدد الزباين: ${e instanceof Error ? e.message : String(e)}`)
               flash('ما انحفظ عدد الزباين والمي، جرّب كمان مرة من زر 👥')
             } finally {
               savingGuests.current = false

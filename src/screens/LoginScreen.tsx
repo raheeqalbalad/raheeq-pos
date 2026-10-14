@@ -1,6 +1,7 @@
 import { useSession } from '../lib/session'
 import Logo from '../components/Logo'
 import PinPad from '../components/PinPad'
+import { APP_VERSION } from '../lib/errorLog'
 
 /** شاشة الرمز. على التابلت بالعرض (الشاشة قصيرة) الشعار بيصير جنب الأرقام عشان كل اشي يبيّن. */
 export default function LoginScreen({ onEmail }: { onEmail?: () => void }) {
@@ -18,6 +19,7 @@ export default function LoginScreen({ onEmail }: { onEmail?: () => void }) {
             دخول بالإيميل
           </button>
         )}
+        <span className="num text-xs text-cream/40">نسخة {APP_VERSION}</span>
       </div>
     </div>
   )

@@ -33,6 +33,7 @@ class SyncDb extends Dexie {
 export const syncDb = new SyncDb()
 
 const BATCH = 400
+const MENU_TABLES = new Set(['categories', 'items', 'optionLists'])
 const MENU_HASH = 'public-menu-hash'
 
 export interface SyncStatus {
@@ -160,6 +161,8 @@ async function upsert(rows: { tbl: string; id: string; data: unknown; deleted: b
 async function pushOnce(): Promise<number> {
   let uploaded = 0
   const tables = db.tables.filter((t) => dirty.has(t.name))
+  // المنيو العام بينحسب من جديد بس إذا المنيو نفسه تغيّر (أو أول مرة)
+  const menuChanged = tables.some((t) => MENU_TABLES.has(t.name)) || !(await syncDb.meta.get(MENU_HASH))
   for (const table of tables) {
     dirty.delete(table.name)
     try {
@@ -168,7 +171,9 @@ async function pushOnce(): Promise<number> {
       const changed: { tbl: string; id: string; data: unknown; deleted: boolean }[] = []
       const newHashes: HashRow[] = []
       const seen = new Set<string>()
-      for (const row of rows) {
+      for (const [n, row] of rows.entries()) {
+        // كل 200 سجل بنعطي الشاشة نفس، عشان الكبسات ما تعلق على تابلت بطيء
+        if (n && n % 200 === 0) await new Promise((r) => setTimeout(r))
         const id = keyOf(table, row)
         seen.add(id)
         const data = cloudData(table.name, row)
@@ -195,6 +200,7 @@ async function pushOnce(): Promise<number> {
   }
 
   // المنيو العام لصفحة الـ QR
+  if (!menuChanged) return uploaded
   const menu = await buildPublicMenu()
   const menuHash = hashOf(JSON.stringify(menu))
   if ((await syncDb.meta.get(MENU_HASH))?.value !== menuHash) {

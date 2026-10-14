@@ -1,3 +1,4 @@
+import { logError } from '../lib/errorLog'
 import { Component, type ReactNode } from 'react'
 import Logo from './Logo'
 
@@ -29,6 +30,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, { error: E
   }
 
   componentDidCatch(error: Error) {
+    logError(error.message, error.stack?.split('\n')[1]?.trim())
     console.error('خطأ بالتطبيق:', error)
   }
 

@@ -11,6 +11,8 @@ import type { ChecklistTask } from '../db/types'
 import { formatJod, toFils } from '../lib/money'
 import MoneyInput from '../components/MoneyInput'
 import CloudSection from '../components/CloudSection'
+import { APP_VERSION, clearErrors, readErrors } from '../lib/errorLog'
+import { timeLabelOf } from '../lib/time'
 import MenuQrSection from '../components/MenuQrSection'
 
 const inputClass = 'h-12 min-w-0 rounded-xl bg-white px-3 text-lg ring-1 ring-cream-200 outline-none focus:ring-2 focus:ring-green'
@@ -32,6 +34,7 @@ export default function SettingsScreen() {
         {checklists && <ChecklistsForm initial={checklists} />}
         {floor && <FloorForm initial={floor} />}
         {goal && <GoalForm initial={goal} />}
+        <Diagnostics />
         <p className="text-center text-sm text-ink/50">إعدادات كرت الولاء بشاشة «الزباين».</p>
       </div>
     </main>
@@ -336,6 +339,53 @@ function ChecklistsForm({ initial }: { initial: Checklists }) {
       <div className="mt-2">
         <Saved text={msg} />
       </div>
+    </section>
+  )
+}
+
+/** للتشخيص: رقم النسخة وآخر الأخطاء اللي صارت على هالجهاز. */
+function Diagnostics() {
+  const [errors, setErrors] = useState(readErrors)
+  return (
+    <section className="rounded-3xl bg-white/70 p-5 ring-1 ring-cream-200">
+      <h2 className="mb-1 font-display text-xl text-green">التشخيص</h2>
+      <p className="mb-3 text-sm text-ink/60">
+        النسخة على هالجهاز: <span className="num font-bold text-green">{APP_VERSION}</span>
+      </p>
+      {errors.length === 0 ? (
+        <p className="text-sm text-ink/50">ما صار أي غلط ✓</p>
+      ) : (
+        <>
+          <h3 className="mb-1 text-sm font-bold text-green">آخر الأخطاء ({errors.length})</h3>
+          <ul className="mb-3 flex max-h-72 flex-col gap-1 overflow-y-auto text-xs">
+            {errors.map((e, i) => (
+              <li key={i} className="rounded-lg bg-red-800/5 px-2 py-1">
+                <span className="num text-ink/50">
+                  {new Date(e.at).getDate()}/{new Date(e.at).getMonth() + 1} {timeLabelOf(e.at)}
+                </span>{' '}
+                <span className="text-red-900" dir="auto">
+                  {e.message}
+                </span>
+                {e.where && (
+                  <span className="block truncate text-ink/40" dir="ltr">
+                    {e.where}
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+          <button
+            type="button"
+            onClick={() => {
+              clearErrors()
+              setErrors([])
+            }}
+            className="h-12 rounded-xl px-4 text-sm text-green ring-1 ring-green/20 active:bg-cream-200"
+          >
+            امسح السجل
+          </button>
+        </>
+      )}
     </section>
   )
 }

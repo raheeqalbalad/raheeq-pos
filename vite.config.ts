@@ -4,8 +4,12 @@ import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
 // منشور على GitHub Pages تحت raheeqalbalad.github.io/raheeq-pos/
+// رقم النسخة = وقت البناء بتوقيت عمّان (بيبيّن على شاشة الرمز والإعدادات)
+const version = new Date().toLocaleString('en-GB', { timeZone: 'Asia/Amman', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+
 export default defineConfig({
   base: '/raheeq-pos/',
+  define: { __APP_VERSION__: JSON.stringify(version) },
   // صفحتين: التطبيق، ومنيو الزباين العام (/raheeq-pos/menu/)
   build: {
     rollupOptions: {
