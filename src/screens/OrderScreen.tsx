@@ -28,6 +28,7 @@ import { refreshLoyaltyDiscount } from '../lib/customers'
 import { refreshManualDiscount } from '../lib/discounts'
 import { useOwnerGate } from '../lib/useOwnerGate'
 import { setGuestsWithWater } from '../lib/water'
+import DeleteOrderButton from '../components/DeleteOrderButton'
 import CoalSheet, { useNow } from '../components/CoalSheet'
 import { coalDue, getFloorSettings } from '../lib/floor'
 
@@ -392,6 +393,18 @@ export default function OrderScreen({ orderId: initialId, target, title, onDone,
               إلغاء الطلب
             </button>
           </div>
+          {order && (
+            <div className="mt-3 border-t border-cream-200 pt-2">
+              <DeleteOrderButton
+                order={order}
+                total={subtotal}
+                onDeleted={() => {
+                  setConfirmVoid(false)
+                  onDone(`انحذف ${displayTitle} نهائيًا`)
+                }}
+              />
+            </div>
+          )}
         </Sheet>
       )}
     </div>

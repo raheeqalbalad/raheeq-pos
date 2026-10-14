@@ -207,8 +207,10 @@ export interface CliqAccount {
 
 export interface CliqSettings {
   accounts: CliqAccount[]
-  /** الحساب التلقائي لما الموظف يختار كليك */
+  /** الحساب التلقائي (للدفعات القديمة وتصحيح الدفعات، ولما المالك هو اللي فاتح الشيفت) */
   defaultId: string
+  /** الكليك تلقائيًا على حساب الموظف اللي فاتح الشيفت (فاضي = آه) */
+  staffFirst?: boolean
 }
 
 /** سجل تصحيح طريقة الدفع (كاش ↔ كليك). */
@@ -294,7 +296,7 @@ export interface StockCount {
 
 // ===== سجل التعديلات (مين عدّل شو ومتى، وشو كان قبل) =====
 
-export type AuditKind = 'line' | 'void' | 'payment' | 'expense-edit' | 'expense-delete' | 'discount' | 'recount'
+export type AuditKind = 'line' | 'void' | 'payment' | 'expense-edit' | 'expense-delete' | 'discount' | 'recount' | 'delete'
 
 export interface AuditEntry {
   id?: number

@@ -25,7 +25,10 @@ export async function saveCliqSettings(s: CliqSettings) {
   const names = active.map((a) => a.name.trim())
   if (new Set(names).size !== names.length) throw new Error('في اسمين حسابات متشابهين')
   const defaultId = active.some((a) => a.id === s.defaultId) ? s.defaultId : active[0].id
-  await db.settings.put({ key: KEY, value: { accounts: s.accounts.map((a) => ({ ...a, name: a.name.trim() })), defaultId } })
+  await db.settings.put({
+    key: KEY,
+    value: { accounts: s.accounts.map((a) => ({ ...a, name: a.name.trim() })), defaultId, staffFirst: s.staffFirst !== false },
+  })
 }
 
 export interface CliqChoice {
@@ -35,15 +38,21 @@ export interface CliqChoice {
   isStaff: boolean
 }
 
-/** الخيارات بشاشة الدفع: الحسابات الفعّالة + الموظف اللي فاتح الشيفت. */
+/**
+ * الخيارات بشاشة الدفع: الحسابات الفعّالة + الموظف اللي فاتح الشيفت.
+ * التلقائي: حساب الموظف (إلا إذا المالك طفّاها من الإعدادات)، والموظف بيقدر يغيّر لحساب المالك.
+ * إذا المالك نفسه فاتح الشيفت، الكليك على حسابه العادي (ما في «حساب موظف»).
+ */
 export async function cliqChoices(shift: Shift | undefined): Promise<{ choices: CliqChoice[]; defaultKey: string }> {
   const s = await getCliqSettings()
-  const choices: CliqChoice[] = s.accounts.filter((a) => a.active).map((a) => ({ key: a.id, name: a.name, isStaff: false }))
-  if (shift) {
-    const staff = await db.users.get(shift.staffId)
-    if (staff) choices.push({ key: `${STAFF_PREFIX}${staff.id}`, name: staff.name, isStaff: true })
-  }
-  return { choices, defaultKey: choices.some((c) => c.key === s.defaultId) ? s.defaultId : choices[0]?.key }
+  const accounts: CliqChoice[] = s.accounts.filter((a) => a.active).map((a) => ({ key: a.id, name: a.name, isStaff: false }))
+  const opener = shift ? await db.users.get(shift.staffId) : undefined
+  const staff: CliqChoice | undefined =
+    opener && opener.role !== 'owner' ? { key: `${STAFF_PREFIX}${opener.id}`, name: opener.name, isStaff: true } : undefined
+  const choices = staff ? [staff, ...accounts] : accounts
+  const account = accounts.find((c) => c.key === s.defaultId) ?? accounts[0]
+  const defaultKey = (staff && s.staffFirst !== false ? staff : account ?? staff)?.key
+  return { choices, defaultKey: defaultKey ?? '' }
 }
 
 export const isStaffCliq = (p: Payment) => !!p.cliqAccount?.startsWith(STAFF_PREFIX)

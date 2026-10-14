@@ -100,6 +100,35 @@ export async function voidOrderAudited(order: Order, byUserId: number) {
   })
 }
 
+/**
+ * حذف طلب نهائيًا (طلبات التجربة): الطلب وأصنافه ودفعاته بينشالوا كأنهم ما صاروا، فما بيبيّنوا
+ * بالمبيعات ولا بالإلغاءات. بده رمز المالك، وبينسجّل بسجل التعديلات مين حذف وشو كان فيه.
+ */
+export async function deleteOrderAudited(orderId: number, byUserId: number, approvedBy?: number) {
+  await db.transaction('rw', ['orders', 'orderLines', 'payments', 'paymentCorrections', 'shifts', 'auditLog'], async () => {
+    const order = await db.orders.get(orderId)
+    if (!order) return
+    const lines = await db.orderLines.where('orderId').equals(orderId).toArray()
+    const payments = await db.payments.where('orderId').equals(orderId).toArray()
+    const total = linesTotal(lines)
+    const paid = paymentsTotal(payments)
+    const shiftId = await shiftIdForOrder(order)
+    await db.orderLines.bulkDelete(lines.map((l) => l.id!))
+    await db.payments.bulkDelete(payments.map((p) => p.id!))
+    await db.paymentCorrections.where('orderId').equals(orderId).delete()
+    await db.orders.delete(orderId)
+    await logAudit({
+      kind: 'delete',
+      byUserId,
+      approvedBy: approvedBy !== byUserId ? approvedBy : undefined,
+      orderId,
+      shiftId,
+      summary: `حذف ${order.label} نهائيًا (${formatJod(total)}${paid ? `، ومدفوع منه ${formatJod(paid)}` : ''}) — طلب تجربة`,
+      before: { order, lines, payments },
+    })
+  })
+}
+
 /** تسجيل تصحيح دفعة بسجل التعديلات (التصحيح نفسه بـ correctPayment). */
 export async function logPaymentCorrection(payment: Payment, to: Payment['method'], byUserId: number) {
   const order = await db.orders.get(payment.orderId)

@@ -6,6 +6,7 @@ import { orderDue, optionsLabel } from '../lib/orders'
 import { formatJod } from '../lib/money'
 import PaymentsList, { METHOD_LABEL, timeLabel } from '../components/PaymentsList'
 import Sheet from '../components/Sheet'
+import DeleteOrderButton from '../components/DeleteOrderButton'
 
 /** الطلبات اللي تسكّرت بالشيفت الحالي — منها بتصحّح الدفعات بعد الدفع. */
 export default function HistoryScreen({ shift }: { shift: Shift }) {
@@ -94,6 +95,9 @@ function OrderDetail({ order, onClose }: { order: Order; onClose: () => void }) 
           <PaymentsList orderId={order.id!} />
         </>
       )}
+      <div className="mt-4 border-t border-cream-200 pt-2">
+        <DeleteOrderButton order={order} total={(lines ?? []).reduce((s, l) => s + l.qty * l.priceSnapshot, 0)} onDeleted={onClose} />
+      </div>
     </Sheet>
   )
 }

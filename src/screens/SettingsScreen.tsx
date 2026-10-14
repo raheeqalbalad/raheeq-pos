@@ -45,12 +45,13 @@ function Saved({ text }: { text: string }) {
 function CliqForm({ initial }: { initial: CliqSettings }) {
   const [accounts, setAccounts] = useState<CliqAccount[]>(initial.accounts)
   const [defaultId, setDefaultId] = useState(initial.defaultId)
+  const [staffFirst, setStaffFirst] = useState(initial.staffFirst !== false)
   const [msg, setMsg] = useState('')
   const update = (i: number, change: Partial<CliqAccount>) => setAccounts((as) => as.map((a, j) => (j === i ? { ...a, ...change } : a)))
 
   async function save() {
     try {
-      await saveCliqSettings({ accounts, defaultId })
+      await saveCliqSettings({ accounts, defaultId, staffFirst })
       setMsg('انحفظ ✓')
     } catch (e) {
       setMsg(e instanceof Error ? e.message : 'ما زبط')
@@ -61,9 +62,29 @@ function CliqForm({ initial }: { initial: CliqSettings }) {
   return (
     <section className="rounded-3xl bg-white/70 p-5 ring-1 ring-cream-200">
       <h2 className="mb-1 font-display text-xl text-green">حسابات الكليك</h2>
-      <p className="mb-4 text-sm text-ink/60">
-        لما الموظف يختار كليك، بيختار على حساب مين. «التلقائي» بيكون مختار لحاله. وفي كمان خيار «الموظف اللي فاتح الشيفت»، وهاد
-        الموظف بيحط مقابله كاش بالدرج، فبينحسب ضمن المفروض بالدرج.
+      <p className="mb-3 text-sm text-ink/60">
+        لما الموظف يختار كليك، بيختار على حساب مين. الكليك على حساب الموظف بيحط مقابله كاش بالدرج، فبينحسب ضمن المفروض بالدرج.
+      </p>
+      <div className="mb-4 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => setStaffFirst(true)}
+          className={`h-12 rounded-xl px-4 font-medium ${staffFirst ? 'bg-green text-cream' : 'bg-cream-200 text-green active:bg-green-100'}`}
+        >
+          التلقائي: حساب الموظف اللي فاتح الشيفت
+        </button>
+        <button
+          type="button"
+          onClick={() => setStaffFirst(false)}
+          className={`h-12 rounded-xl px-4 font-medium ${!staffFirst ? 'bg-green text-cream' : 'bg-cream-200 text-green active:bg-green-100'}`}
+        >
+          التلقائي: الحساب المختار تحت
+        </button>
+      </div>
+      <p className="mb-2 text-sm text-ink/60">
+        {staffFirst
+          ? 'الموظف بيقدر يغيّره لحساب من هدول بكبسة. «التلقائي ✓» هون للدفعات القديمة، ولما المالك هو اللي فاتح الشيفت.'
+          : 'الحساب المعلّم «التلقائي ✓» بيكون مختار لحاله، والموظف بيقدر يغيّره.'}
       </p>
       <ul className="flex flex-col gap-2">
         {accounts.map((a, i) => (

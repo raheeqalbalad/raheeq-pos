@@ -14,6 +14,7 @@ import MoneyInput from '../components/MoneyInput'
 import PaymentsList, { METHOD_LABEL } from '../components/PaymentsList'
 import { ChecklistView } from '../components/Checklist'
 import { useRemote } from '../lib/cloud/useDeviceMode'
+import DeleteOrderButton from '../components/DeleteOrderButton'
 
 type Mode = 'day' | 'range'
 
@@ -388,6 +389,12 @@ function OrderEditor({ order: initial, onClose }: { order: Order; onClose: () =>
             </button>
           )}
         </>
+      )}
+
+      {!remote && (
+        <div className="mt-4 border-t border-cream-200 pt-2">
+          <DeleteOrderButton order={order} total={(lines ?? []).reduce((s, l) => s + l.qty * l.priceSnapshot, 0)} onDeleted={onClose} />
+        </div>
       )}
 
       {confirm && <Confirm {...confirm} onDone={() => setConfirm(null)} />}
