@@ -4,18 +4,23 @@ import type { CliqAccount, CliqSettings, DiscountSettings } from '../db/types'
 import { getCliqSettings, saveCliqSettings } from '../lib/cliq'
 import { getDiscountSettings, saveDiscountSettings } from '../lib/discounts'
 import { newId } from '../lib/menu'
+import { getGoal, saveGoalPlan, type GoalSettings } from '../lib/goal'
+import { formatJod, toFils } from '../lib/money'
+import MoneyInput from '../components/MoneyInput'
 
 const inputClass = 'h-12 min-w-0 rounded-xl bg-white px-3 text-lg ring-1 ring-cream-200 outline-none focus:ring-2 focus:ring-green'
 
-/** إعدادات المالك: حسابات الكليك، وحد خصم الموظف. (إعدادات الولاء بشاشة الزباين.) */
+/** إعدادات المالك: حسابات الكليك، وحد خصم الموظف، وهدف التوفير. (إعدادات الولاء بشاشة الزباين.) */
 export default function SettingsScreen() {
   const cliq = useLiveQuery(getCliqSettings, [])
   const discounts = useLiveQuery(getDiscountSettings, [])
+  const goal = useLiveQuery(getGoal, [])
   return (
     <main className="flex-1 overflow-y-auto p-4">
       <div className="mx-auto flex max-w-2xl flex-col gap-4">
         {cliq && <CliqForm initial={cliq} />}
         {discounts && <DiscountForm initial={discounts} />}
+        {goal && <GoalForm initial={goal} />}
         <p className="text-center text-sm text-ink/50">إعدادات كرت الولاء بشاشة «الزباين».</p>
       </div>
     </main>
@@ -120,6 +125,55 @@ function DiscountForm({ initial }: { initial: DiscountSettings }) {
       </div>
       <button type="button" onClick={save} className="mt-4 h-14 w-full rounded-2xl bg-gold text-lg font-bold text-green active:bg-gold-600">
         حفظ
+      </button>
+      <div className="mt-2">
+        <Saved text={msg} />
+      </div>
+    </section>
+  )
+}
+
+function GoalForm({ initial }: { initial: GoalSettings }) {
+  const [target, setTarget] = useState(formatJod(initial.target))
+  const [months, setMonths] = useState(String(initial.months))
+  const [start, setStart] = useState(initial.start)
+  const [msg, setMsg] = useState('')
+
+  async function save() {
+    try {
+      await saveGoalPlan({ target: toFils(target || 0), months: Number(months), start })
+      setMsg('انحفظ ✓')
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : 'ما زبط')
+    }
+    setTimeout(() => setMsg(''), 3000)
+  }
+
+  return (
+    <section className="rounded-3xl bg-white/70 p-5 ring-1 ring-cream-200">
+      <h2 className="mb-1 font-display text-xl text-green">هدف التوفير</h2>
+      <p className="mb-4 text-sm text-ink/60">العدّاد بيطلع بالتقارير للمالك والشريك. التوفير الفعلي كل شهر بيتسجّل من هناك.</p>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <label className="flex flex-col gap-1">
+          <span className="text-sm font-bold text-green">الهدف (دينار)</span>
+          <MoneyInput value={target} onChange={setTarget} />
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-sm font-bold text-green">المدة (شهور)</span>
+          <input
+            value={months}
+            onChange={(e) => setMonths(e.target.value.replace(/\D/g, '').slice(0, 2))}
+            inputMode="numeric"
+            className={`${inputClass} num h-14 text-center text-2xl`}
+          />
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-sm font-bold text-green">شهر البداية</span>
+          <input type="month" value={start} onChange={(e) => setStart(e.target.value)} className={`${inputClass} num h-14`} />
+        </label>
+      </div>
+      <button type="button" onClick={save} className="mt-4 h-14 w-full rounded-2xl bg-gold text-lg font-bold text-green active:bg-gold-600">
+        حفظ الهدف
       </button>
       <div className="mt-2">
         <Saved text={msg} />

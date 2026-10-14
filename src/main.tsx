@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App'
 import { seedIfEmpty, seedStockIfEmpty } from './db/seed'
+import { ensureGoal } from './lib/goal'
 import { SessionProvider } from './lib/session'
 import { db } from './db/db'
 import { keepScreenOn } from './lib/wakeLock'
@@ -32,7 +33,7 @@ function Boot() {
     const onBlocked = () => !done && setState('blocked')
     db.on('blocked', onBlocked)
     const slow = setTimeout(() => !done && setState('slow'), 10_000)
-    Promise.all([seedIfEmpty(), seedStockIfEmpty()])
+    Promise.all([seedIfEmpty(), seedStockIfEmpty(), ensureGoal()])
       .then(() => {
         done = true
         setState('ready')

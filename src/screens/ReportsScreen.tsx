@@ -23,6 +23,7 @@ import { timeLabelOf } from '../lib/time'
 import { useSession } from '../lib/session'
 import { useOwnerGate } from '../lib/useOwnerGate'
 import Sheet from '../components/Sheet'
+import GoalCard from '../components/GoalCard'
 
 // ألوان الرسوم (متأكد منها بفاحص عمى الألوان، ومعها أسماء ظاهرة دايمًا)
 const CASH = '#1F8A5E'
@@ -57,6 +58,9 @@ export default function ReportsScreen() {
   if (!shifts.length)
     return (
       <main className="flex-1 overflow-y-auto p-4">
+        <div className="mx-auto max-w-5xl">
+          <GoalCard canEdit={user?.role === 'owner'} />
+        </div>
         <p className="p-10 text-center text-ink/50">لسا ما في أيام شغل. التقارير بتبيّن بعد أول شيفت.</p>
         <Tools canWipe={user?.role === 'owner'} />
       </main>
@@ -65,6 +69,7 @@ export default function ReportsScreen() {
   return (
     <main className="flex-1 overflow-y-auto p-4">
       <div className="mx-auto flex max-w-5xl flex-col gap-4">
+        <GoalCard canEdit={user?.role === 'owner'} />
         {/* الفترة */}
         <div className="flex flex-wrap items-center gap-2">
           {(
