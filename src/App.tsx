@@ -23,12 +23,16 @@ import ScreenNav, { type View } from './components/ScreenNav'
 import { EmailLoginScreen, ViewerApp } from './screens/CloudScreens'
 import { useDeviceMode } from './lib/cloud/useDeviceMode'
 import { cloudConfigured } from './lib/cloud/config'
+import { useKeepScreenOn } from './lib/wakeLock'
 
 export default function App() {
   const { user } = useSession()
   const userCount = useLiveQuery(() => db.users.count(), [])
   const mode = useDeviceMode()
   const [emailLogin, setEmailLogin] = useState(false)
+  // طول ما في شيفت مفتوح الشاشة ما بتطفي (حتى على شاشة الرمز)، وبعد التسكير بترجع تطفي عادي
+  const shiftOpen = useLiveQuery(async () => mode !== 'viewer' && !!(await getOpenShift()), [mode])
+  useKeepScreenOn(!!shiftOpen)
 
   // دخول بالإيميل من بعيد (تلفون أو لابتوب): نسخة من السحابة، بدون رموز
   if (cloudConfigured && mode === 'viewer') return <ViewerApp />

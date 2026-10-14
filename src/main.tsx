@@ -12,15 +12,12 @@ import { deviceMode } from './lib/cloud/device'
 import { installRemoteEdits } from './lib/cloud/remote'
 import { SessionProvider } from './lib/session'
 import { db } from './db/db'
-import { keepScreenOn } from './lib/wakeLock'
 import { ErrorBoundary, RecoveryScreen } from './components/Recovery'
 import UpdateManager from './components/UpdateManager'
 import BatteryAlert from './components/BatteryAlert'
 
 // للتجربة وقت التطوير بس (ما بيدخل بنسخة النشر)
 if (import.meta.env.DEV) Object.assign(window, { db })
-
-keepScreenOn()
 
 // قبل أول استعمال للقاعدة: الدخول بالإيميل من بعيد بيحوّل تعديلات المالك لطلبات للتابلت، وبيمنع غيرها
 installRemoteEdits()

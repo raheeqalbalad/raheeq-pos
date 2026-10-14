@@ -41,9 +41,9 @@ export default defineConfig({
         dir: 'rtl',
         theme_color: '#233D34',
         background_color: '#F6EBDD',
-        // من الأيقونة: شاشة كاملة بدون شريط الحالة، وبالعرض
-        display: 'fullscreen',
-        display_override: ['fullscreen', 'standalone'],
+        // من الأيقونة: تطبيق لحاله مع شريط أندرويد فوق (البطارية والساعة)، وبالعرض.
+        // (الشاشة الكاملة كانت تطلّع شاشة بيضا بعد قفل التابلت وهو مثبّت)
+        display: 'standalone',
         orientation: 'landscape',
         // مسارات كاملة وصريحة (نفس هوية التطبيق المثبّت قبل: https://raheeqalbalad.github.io/raheeq-pos/)
         id: '/raheeq-pos/',

@@ -2,10 +2,8 @@ import { useEffect, useState, useSyncExternalStore, type ReactNode } from 'react
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useDeviceMode } from '../lib/cloud/useDeviceMode'
 import { getStatus, syncState } from '../lib/cloud/sync'
-import { useBattery } from '../lib/battery'
 import { getOpenShift } from '../lib/shift'
 import { pastMidnight } from '../lib/businessDay'
-import { timeLabelOf } from '../lib/time'
 import { ROLE_LABEL, useSession } from '../lib/session'
 import Logo from './Logo'
 
@@ -95,52 +93,36 @@ function agoShort(ts: number, now: number) {
 }
 
 /**
- * شريط صغير بالزاوية (بدل شريط أندرويد اللي بيختفي بالشاشة الكاملة):
- * البطارية والشاحن، الساعة، النت، وآخر مزامنة (على التابلت المربوط).
+ * حالة النت وآخر مزامنة (على التابلت المربوط). البطارية والساعة بشريط أندرويد فوق.
  */
 function StatusBar() {
   const now = useClock()
   const online = useOnline()
-  const battery = useBattery()
   const mode = useDeviceMode()
   const sync = useSyncExternalStore(syncState.subscribe, syncState.get)
   const status = useLiveQuery(() => (mode === 'cafe' ? getStatus() : undefined), [mode])
-  const lowBattery = battery && !battery.charging && battery.level < 20
   const waiting = sync.pending || !!sync.error
 
   return (
     <div className="flex flex-col items-end gap-0.5 text-xs leading-tight">
-      <div className="flex items-center gap-2">
-        {battery && (
-          <span
-            title={battery.charging ? 'الشاحن شابك' : 'على البطارية'}
-            className={`num font-bold ${lowBattery ? 'rounded bg-red-700 px-1 text-cream' : 'opacity-90'}`}
-          >
-            {battery.charging ? '⚡' : '🔋'}
-            {battery.level}%
-          </span>
-        )}
-        <span className="num font-bold">{timeLabelOf(now)}</span>
-      </div>
-      <div className="flex items-center gap-1 opacity-90">
+      <div className="flex items-center gap-1 font-bold">
         <span className={`inline-block size-2 rounded-full ${online ? 'bg-emerald-400' : 'bg-red-500'}`} aria-hidden />
         <span>{online ? 'متصل' : 'بدون نت'}</span>
-        {mode === 'cafe' && (
-          <span
-            title={sync.error || (waiting ? 'في تغييرات مستنية رفع للسحابة' : 'كل إشي مرفوع للسحابة')}
-            className={waiting ? 'font-bold text-gold' : ''}
-          >
-            {' · '}
-            {waiting ? '⏳' : '✓'}
-            {status?.lastSyncAt ? (
-              <>
-                {' '}
-                <span className="num">{agoShort(status.lastSyncAt, now)}</span>
-              </>
-            ) : null}
-          </span>
-        )}
       </div>
+      {mode === 'cafe' && (
+        <span
+          title={sync.error || (waiting ? 'في تغييرات مستنية رفع للسحابة' : 'كل إشي مرفوع للسحابة')}
+          className={waiting ? 'font-bold text-gold' : 'opacity-80'}
+        >
+          {waiting ? (sync.error ? '⏳ مش مرفوع' : '⏳ بيرفع') : '✓ مرفوع'}
+          {status?.lastSyncAt ? (
+            <>
+              {' '}
+              <span className="num">{agoShort(status.lastSyncAt, now)}</span>
+            </>
+          ) : null}
+        </span>
+      )}
     </div>
   )
 }
