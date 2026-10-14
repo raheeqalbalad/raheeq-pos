@@ -2,19 +2,35 @@ import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db/db'
 import type { Shift } from '../db/types'
-import { closeShift, leftInDrawerOf, shiftSummary, withdrawnOf, type ShiftSummary } from '../lib/shift'
+import { closeShift, countDrawer, leftInDrawerOf, resetDrawerCount, shiftSummary, withdrawnOf, type ShiftSummary } from '../lib/shift'
 import { formatJod, toFils } from '../lib/money'
 import { useSession } from '../lib/session'
+import { useOwnerGate } from '../lib/useOwnerGate'
 import { timeLabel } from '../components/PaymentsList'
 import MoneyInput from '../components/MoneyInput'
 import Sheet from '../components/Sheet'
 import Header from '../components/Header'
 
-function Row({ label, value, strong = false, sign = '' }: { label: string; value: number; strong?: boolean; sign?: string }) {
+function Row({
+  label,
+  value,
+  strong = false,
+  sub = false,
+  sign = '',
+}: {
+  label: string
+  value: number
+  strong?: boolean
+  /** سطر تفصيل تحت سطر (أصغر ومزاح) */
+  sub?: boolean
+  sign?: string
+}) {
   return (
-    <div className={`flex items-baseline justify-between py-2 ${strong ? 'font-bold text-green' : ''}`}>
+    <div
+      className={`flex items-baseline justify-between ${sub ? 'py-1.5 ps-4 text-sm text-ink/70' : 'py-2'} ${strong ? 'font-bold text-green' : ''}`}
+    >
       <span>{label}</span>
-      <span className={`num ${strong ? 'font-display text-2xl' : 'text-lg'}`}>
+      <span className={`num ${strong ? 'font-display text-2xl' : sub ? '' : 'text-lg'}`}>
         {sign}
         {formatJod(value)}
       </span>
@@ -39,14 +55,12 @@ function SummaryCard({ shift, summary }: { shift: Shift; summary: ShiftSummary }
         <div className="divide-y divide-cream-200">
           <Row label="كاش" value={summary.cash} />
           <Row label="كليك" value={summary.cliq} />
+          {summary.cliqSplit.map((r) => (
+            <Row key={`${r.isStaff}${r.name}`} sub label={r.isStaff ? `${r.name} (على حساب الموظف)` : r.name} value={r.amount} />
+          ))}
           <Row label="مجموع المبيعات" value={summary.sales} strong />
           {summary.loyalty > 0 && <Row label="خصم ولاء (منقوص من المبيعات)" value={summary.loyalty} sign="−" />}
           {summary.manual > 0 && <Row label="خصومات يدوية (منقوصة من المبيعات)" value={summary.manual} sign="−" />}
-          {summary.cliqSplit
-            .filter((r) => !r.isStaff)
-            .map((r) => (
-              <Row key={r.name} label={`  كليك — ${r.name}`} value={r.amount} />
-            ))}
           <Row label="مصاريف الدرج" value={summary.expenses} sign="−" />
           {summary.outside > 0 && <Row label="مصاريف من برا الدرج" value={summary.outside} sign="−" />}
           <Row label="الصافي" value={summary.net} strong />
@@ -66,21 +80,10 @@ function SummaryCard({ shift, summary }: { shift: Shift; summary: ShiftSummary }
         <div className="divide-y divide-cream-200">
           <Row label="كاش البداية" value={shift.openingCash} />
           <Row label="مبيعات كاش" value={summary.cash} sign="+" />
+          {summary.cliqStaff > 0 && <Row label="كليك على حساب الموظف (بيتحط كاش بالدرج)" value={summary.cliqStaff} sign="+" />}
           <Row label="مصاريف الدرج" value={summary.expenses} sign="−" />
           <Row label="المفروض بالدرج" value={summary.expectedCash} strong />
         </div>
-        {summary.cliqStaff > 0 && (
-          <div className="mt-3 rounded-xl bg-red-800/10 px-3 py-2 text-red-900">
-            {summary.cliqSplit
-              .filter((r) => r.isStaff)
-              .map((r) => (
-                <div key={r.name} className="flex items-baseline justify-between font-bold">
-                  <span>كليك على حساب الموظف ({r.name}) — لازم يتسلّم</span>
-                  <span className="num">{formatJod(r.amount)}</span>
-                </div>
-              ))}
-          </div>
-        )}
         <p className="mt-3 text-sm text-ink/60">
           فتحه {opener?.name} الساعة <span className="num">{timeLabel(shift.openedAt)}</span>
           {names && <> · باعوا: {names}</>}
@@ -90,15 +93,27 @@ function SummaryCard({ shift, summary }: { shift: Shift; summary: ShiftSummary }
   )
 }
 
-function Difference({ diff }: { diff: number }) {
+/** المعدود والمفروض والفرق (زيادة بالأخضر، نقص بالأحمر). */
+function CountResult({ counted, expected }: { counted: number; expected: number }) {
+  const diff = counted - expected
+  const diffClass = diff === 0 ? 'bg-green text-cream' : diff > 0 ? 'bg-emerald-700/15 text-emerald-900' : 'bg-red-800/15 text-red-900'
   return (
-    <div
-      className={`flex items-baseline justify-between rounded-2xl px-5 py-4 ${
-        diff === 0 ? 'bg-green text-cream' : 'bg-red-800/10 text-red-900'
-      }`}
-    >
-      <span className="font-bold">{diff === 0 ? 'الدرج مضبوط ✓' : diff > 0 ? 'زيادة بالدرج' : 'نقص بالدرج'}</span>
-      <span className="num font-display text-3xl">{formatJod(Math.abs(diff))}</span>
+    <div className="grid grid-cols-3 gap-2 text-center">
+      <div className="rounded-2xl bg-cream-200 p-3">
+        <div className="text-sm text-ink/60">المعدود</div>
+        <div className="num font-display text-2xl text-green">{formatJod(counted)}</div>
+      </div>
+      <div className="rounded-2xl bg-cream-200 p-3">
+        <div className="text-sm text-ink/60">المفروض</div>
+        <div className="num font-display text-2xl text-green">{formatJod(expected)}</div>
+      </div>
+      <div className={`rounded-2xl p-3 ${diffClass}`}>
+        <div className="text-sm font-bold">{diff === 0 ? 'الدرج مضبوط ✓' : diff > 0 ? 'زيادة ▲' : 'نقص ▼'}</div>
+        <div className="num font-display text-2xl">
+          {diff > 0 ? '+' : diff < 0 ? '−' : ''}
+          {formatJod(Math.abs(diff))}
+        </div>
+      </div>
     </div>
   )
 }
@@ -120,72 +135,169 @@ function WithdrawRow({ left, withdrawn }: { left: number; withdrawn: number }) {
   )
 }
 
+function OpenOrdersWarning() {
+  const openOrders = useLiveQuery(() => db.orders.where('status').equals('open').toArray(), [])
+  if (!openOrders?.length) return null
+  return (
+    <div className="rounded-2xl bg-gold/40 px-5 py-3 text-ink">
+      في <span className="num font-bold">{openOrders.length}</span> طلب لسا مفتوح ({openOrders.map((o) => o.label).join('، ')}). إذا سكّرت
+      هلق، رح يضلّوا مفتوحين ودفعهم بينحسب على الشيفت الجاي.
+    </div>
+  )
+}
+
+/**
+ * تسكير الشيفت بخطوتين:
+ * ١. العدّ الأعمى: الموظف بيكتب كم عدّ وبيأكّد، بدون ما يشوف المفروض. الرقم بينحفظ على الشيفت.
+ * ٢. النتيجة: المعدود والمفروض والفرق، وبعدين كم تركت للشيفت الجاي والمسحوب.
+ */
 export default function CloseShiftScreen({ shift, onClosed }: { shift: Shift; onClosed: (id: number) => void }) {
+  return (
+    <main className="flex-1 overflow-y-auto p-4">
+      <div className="mx-auto flex max-w-4xl flex-col gap-4">
+        <OpenOrdersWarning />
+        {shift.countedCash === undefined ? <BlindCount shift={shift} /> : <AfterCount shift={shift} onClosed={onClosed} />}
+      </div>
+    </main>
+  )
+}
+
+function BlindCount({ shift }: { shift: Shift }) {
   const { user } = useSession()
   const [counted, setCounted] = useState('')
+  const [confirming, setConfirming] = useState(false)
+  const [error, setError] = useState('')
+  const countedFils = toFils(counted || 0)
+
+  async function confirm() {
+    setError('')
+    try {
+      await countDrawer(shift.id!, countedFils, user!.id!)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'ما زبط')
+      setConfirming(false)
+    }
+  }
+
+  return (
+    <section className="rounded-3xl bg-white/70 p-5 ring-1 ring-cream-200">
+      <h2 className="mb-1 font-display text-xl text-green">عدّ الدرج</h2>
+      <p className="mb-3 text-ink/60">عدّ الكاش اللي بالدرج واكتبه هون. رقم «المفروض» والفرق بيبيّنوا بعد ما تأكّد العدّ.</p>
+      <MoneyInput value={counted} onChange={setCounted} />
+      {error && <p className="mt-2 font-bold text-red-700">{error}</p>}
+      <button
+        type="button"
+        disabled={counted === ''}
+        onClick={() => setConfirming(true)}
+        className="mt-4 h-14 w-full rounded-2xl bg-gold text-lg font-bold text-green active:bg-gold-600 disabled:opacity-40"
+      >
+        أكّد العدّ
+      </button>
+
+      {confirming && (
+        <Sheet title="متأكد من العدّ؟" onClose={() => setConfirming(false)}>
+          <p className="mb-2 text-center">
+            عدّيت بالدرج <span className="num font-display text-3xl text-green">{formatJod(countedFils)}</span>
+          </p>
+          <p className="mb-4 text-center text-sm text-ink/60">بعد التأكيد ما بتقدر تغيّر الرقم، وبيبيّن الفرق باسمك.</p>
+          <div className="grid grid-cols-2 gap-3">
+            <button type="button" onClick={() => setConfirming(false)} className="h-14 rounded-xl bg-cream-200 font-bold text-green">
+              رجوع، بعدّ مرة تانية
+            </button>
+            <button type="button" onClick={confirm} className="h-14 rounded-xl bg-green font-bold text-cream">
+              تأكيد
+            </button>
+          </div>
+        </Sheet>
+      )}
+    </section>
+  )
+}
+
+function AfterCount({ shift, onClosed }: { shift: Shift; onClosed: (id: number) => void }) {
+  const { user } = useSession()
+  const { requireOwner, sheet } = useOwnerGate()
   const [left, setLeft] = useState(DEFAULT_LEFT)
   const [confirming, setConfirming] = useState(false)
+  const [error, setError] = useState('')
   const summary = useLiveQuery(() => shiftSummary(shift), [shift])
-  const openOrders = useLiveQuery(() => db.orders.where('status').equals('open').toArray(), [])
+  // بيع أو مصروف بعد العدّ: الرقم المعدود صار قديم
+  const changedAfter = useLiveQuery(async () => {
+    const at = shift.countedAt ?? 0
+    const [payments, expenses] = await Promise.all([
+      db.payments.where('shiftId').equals(shift.id!).filter((p) => p.createdAt > at).count(),
+      db.expenses.where('shiftId').equals(shift.id!).filter((e) => e.createdAt > at).count(),
+    ])
+    return payments + expenses > 0
+  }, [shift.id, shift.countedAt])
 
   if (!summary) return null
-  const countedFils = toFils(counted || 0)
-  const diff = countedFils - summary.expectedCash
+  const countedFils = shift.countedCash!
   const leftFils = toFils(left || 0)
   const leftValid = left !== '' && leftFils <= countedFils
   const withdrawn = countedFils - leftFils
 
   async function close() {
-    if (!leftValid) return
-    await closeShift(shift.id!, user!.id!, countedFils, leftFils)
-    onClosed(shift.id!)
+    setError('')
+    try {
+      await closeShift(shift.id!, user!.id!, leftFils)
+      onClosed(shift.id!)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'ما زبط')
+      setConfirming(false)
+    }
+  }
+
+  function recount() {
+    if (changedAfter) resetDrawerCount(shift.id!, user!.id!, 'صار بيع أو مصروف بعد العدّ')
+    else
+      requireOwner(
+        'عدّ الدرج من جديد',
+        (ownerId) => resetDrawerCount(shift.id!, user!.id!, 'بموافقة المالك', ownerId === user!.id ? undefined : ownerId),
+        <>الموظف شاف المفروض، فالعدّ من جديد بده موافقة المالك.</>,
+      )
   }
 
   return (
-    <main className="flex-1 overflow-y-auto p-4">
-      <div className="mx-auto flex max-w-4xl flex-col gap-4">
-        <SummaryCard shift={shift} summary={summary} />
-
-        {!!openOrders?.length && (
-          <div className="rounded-2xl bg-gold/40 px-5 py-3 text-ink">
-            في <span className="num font-bold">{openOrders.length}</span> طلب لسا مفتوح (
-            {openOrders.map((o) => o.label).join('، ')}). إذا سكّرت هلق، رح يضلّوا مفتوحين ودفعهم بينحسب على الشيفت الجاي.
-          </div>
+    <>
+      <section className="rounded-3xl bg-white/70 p-5 ring-1 ring-cream-200">
+        <h2 className="mb-3 font-display text-xl text-green">نتيجة العدّ</h2>
+        <CountResult counted={countedFils} expected={summary.expectedCash} />
+        {changedAfter && (
+          <p className="mt-3 rounded-xl bg-gold/40 px-4 py-2 font-bold text-ink">
+            صار بيع أو مصروف بعد ما عدّيت، فالفرق مش دقيق. عدّ الدرج من جديد.
+          </p>
         )}
+        <button
+          type="button"
+          onClick={recount}
+          className="mt-3 h-12 rounded-xl px-4 text-sm text-ink/70 ring-1 ring-cream-200 active:bg-cream-200"
+        >
+          عدّ من جديد{changedAfter ? '' : ' (بده رمز المالك)'}
+        </button>
 
-        <section className="rounded-3xl bg-white/70 p-5 ring-1 ring-cream-200">
-          <h2 className="mb-1 font-display text-xl text-green">عدّ الدرج</h2>
-          <p className="mb-3 text-ink/60">عدّ الكاش اللي بالدرج واكتبه هون</p>
-          <MoneyInput value={counted} onChange={setCounted} />
-          {counted !== '' && (
-            <>
-              <div className="mt-3">
-                <Difference diff={diff} />
-              </div>
-              <label className="mt-5 block">
-                <span className="mb-1 block font-display text-xl text-green">كم تركت بالدرج للشيفت الجاي؟</span>
-                <span className="mb-2 block text-ink/60">الشيفت الجاي بيفتح بهاد المبلغ، والباقي بينحسب مسحوب.</span>
-                <MoneyInput value={left} onChange={setLeft} />
-              </label>
-              {leftValid ? (
-                <WithdrawRow left={leftFils} withdrawn={withdrawn} />
-              ) : (
-                <p className="mt-2 font-bold text-red-700">
-                  {left === '' ? 'اكتب كم تركت (حتى لو صفر)' : 'المتروك ما بصير يكون أكثر من المعدود'}
-                </p>
-              )}
-            </>
-          )}
-          <button
-            type="button"
-            disabled={counted === '' || !leftValid}
-            onClick={() => setConfirming(true)}
-            className="mt-4 h-14 w-full rounded-2xl bg-gold text-lg font-bold text-green active:bg-gold-600 disabled:opacity-40"
-          >
-            سكّر الشيفت
-          </button>
-        </section>
-      </div>
+        <label className="mt-5 block">
+          <span className="mb-1 block font-display text-xl text-green">كم تركت بالدرج للشيفت الجاي؟</span>
+          <span className="mb-2 block text-ink/60">الشيفت الجاي بيفتح بهاد المبلغ، والباقي بينحسب مسحوب.</span>
+          <MoneyInput value={left} onChange={setLeft} />
+        </label>
+        {leftValid ? (
+          <WithdrawRow left={leftFils} withdrawn={withdrawn} />
+        ) : (
+          <p className="mt-2 font-bold text-red-700">{left === '' ? 'اكتب كم تركت (حتى لو صفر)' : 'المتروك ما بصير يكون أكثر من المعدود'}</p>
+        )}
+        {error && <p className="mt-2 font-bold text-red-700">{error}</p>}
+        <button
+          type="button"
+          disabled={!leftValid}
+          onClick={() => setConfirming(true)}
+          className="mt-4 h-14 w-full rounded-2xl bg-gold text-lg font-bold text-green active:bg-gold-600 disabled:opacity-40"
+        >
+          سكّر الشيفت
+        </button>
+      </section>
+
+      <SummaryCard shift={shift} summary={summary} />
 
       {confirming && (
         <Sheet title="تسكير الشيفت؟" onClose={() => setConfirming(false)}>
@@ -204,7 +316,8 @@ export default function CloseShiftScreen({ shift, onClosed }: { shift: Shift; on
           </div>
         </Sheet>
       )}
-    </main>
+      {sheet}
+    </>
   )
 }
 
@@ -225,16 +338,12 @@ export function ClosedShiftScreen({ shiftId, onDone }: { shiftId: number; onDone
           <h1 className="font-display text-2xl text-green">
             تسكّر الشيفت <span className="num text-lg text-ink/50">{timeLabel(shift.openedAt)} – {timeLabel(shift.closedAt!)}</span>
           </h1>
-          <SummaryCard shift={shift} summary={summary} />
-          <Difference diff={(shift.countedCash ?? 0) - summary.expectedCash} />
           <section className="rounded-3xl bg-white/70 p-5 ring-1 ring-cream-200">
-            <h2 className="mb-2 font-display text-xl text-green">تسليم الدرج</h2>
-            <div className="divide-y divide-cream-200">
-              <Row label="المعدود" value={shift.countedCash ?? 0} />
-              <Row label="تركت للشيفت الجاي" value={leftInDrawerOf(shift) ?? 0} />
-              <Row label="المسحوب" value={withdrawnOf(shift) ?? 0} strong />
-            </div>
+            <h2 className="mb-3 font-display text-xl text-green">تسليم الدرج</h2>
+            <CountResult counted={shift.countedCash ?? 0} expected={summary.expectedCash} />
+            <WithdrawRow left={leftInDrawerOf(shift) ?? 0} withdrawn={withdrawnOf(shift) ?? 0} />
           </section>
+          <SummaryCard shift={shift} summary={summary} />
           <button
             type="button"
             onClick={onDone}

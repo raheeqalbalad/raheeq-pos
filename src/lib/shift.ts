@@ -1,6 +1,8 @@
 import { db } from '../db/db'
 import type { Expense, ExpenseSource, Shift } from '../db/types'
-import { splitCliq, type CliqSplitRow } from './cliq'
+import { getCliqSettings, splitCliq, type CliqSplitRow } from './cliq'
+import { logAudit } from './audit'
+import { formatJod } from './money'
 
 /** في درج واحد، فبيكون في شيفت مفتوح واحد بس بأي وقت. */
 export async function getOpenShift(): Promise<Shift | undefined> {
@@ -27,8 +29,41 @@ export async function openShift(staffId: number, openingCash: number): Promise<n
   })
 }
 
-export async function closeShift(shiftId: number, closedBy: number, countedCash: number, leftInDrawer: number) {
-  await db.shifts.update(shiftId, { closedAt: Date.now(), closedBy, countedCash, leftInDrawer })
+/** العدّ الأعمى: الموظف بيأكّد كم عدّ قبل ما يشوف المفروض، والرقم بينحفظ على الشيفت. */
+export async function countDrawer(shiftId: number, countedCash: number, countedBy: number) {
+  await db.transaction('rw', 'shifts', async () => {
+    const shift = await db.shifts.get(shiftId)
+    if (!shift || shift.closedAt) throw new Error('الشيفت مسكّر')
+    if (shift.countedCash !== undefined) throw new Error('الدرج انعدّ قبل')
+    await db.shifts.update(shiftId, { countedCash, countedAt: Date.now(), countedBy })
+  })
+}
+
+/** يرجّع العدّ من جديد (بيتسجّل بسجل التعديلات). */
+export async function resetDrawerCount(shiftId: number, byUserId: number, reason: string, approvedBy?: number) {
+  await db.transaction('rw', ['shifts', 'auditLog'], async () => {
+    const shift = await db.shifts.get(shiftId)
+    if (!shift || shift.closedAt || shift.countedCash === undefined) return
+    await db.shifts.update(shiftId, { countedCash: undefined, countedAt: undefined, countedBy: undefined })
+    await logAudit({
+      byUserId,
+      approvedBy,
+      kind: 'recount',
+      shiftId,
+      summary: `رجّع عدّ الدرج (كان ${formatJod(shift.countedCash)}) — ${reason}`,
+      before: { countedCash: shift.countedCash, countedAt: shift.countedAt, countedBy: shift.countedBy },
+    })
+  })
+}
+
+export async function closeShift(shiftId: number, closedBy: number, leftInDrawer: number) {
+  await db.transaction('rw', 'shifts', async () => {
+    const shift = await db.shifts.get(shiftId)
+    if (!shift || shift.closedAt) throw new Error('الشيفت مسكّر')
+    if (shift.countedCash === undefined) throw new Error('لازم الدرج ينعدّ أول')
+    if (leftInDrawer > shift.countedCash) throw new Error('المتروك ما بصير يكون أكثر من المعدود')
+    await db.shifts.update(shiftId, { closedAt: Date.now(), closedBy, leftInDrawer })
+  })
 }
 
 /** اللي انترك بالدرج (الشيفتات القديمة قبل هالخانة: كل المعدود). */
@@ -48,7 +83,7 @@ export interface ShiftSummary {
   outside: number
   /** المبيعات ناقص كل المصاريف */
   net: number
-  /** كاش البداية + الكاش − المصاريف */
+  /** كاش البداية + الكاش + كليك على حساب الموظف − مصاريف الدرج */
   expectedCash: number
   paidOrders: number
   voidOrders: number
@@ -58,7 +93,7 @@ export interface ShiftSummary {
   manual: number
   /** الكليك مقسوم حسب الحساب */
   cliqSplit: CliqSplitRow[]
-  /** كليك على حساب الموظف: لازم يتسلّم منه */
+  /** كليك على حساب الموظف: بيحط مقابله كاش بالدرج */
   cliqStaff: number
   /** مين باع بالشيفت */
   staffIds: number[]
@@ -81,6 +116,9 @@ export async function shiftSummary(shift: Shift): Promise<ShiftSummary> {
   const expenses = all.filter((e) => expenseSource(e) === 'drawer').reduce((s, e) => s + e.amount, 0)
   const outside = all.filter((e) => expenseSource(e) === 'outside').reduce((s, e) => s + e.amount, 0)
 
+  const cliqSplit = splitCliq(counted, await getCliqSettings())
+  const cliqStaff = cliqSplit.filter((r) => r.isStaff).reduce((s, r) => s + r.amount, 0)
+
   const end = shift.closedAt ?? Date.now()
   const closedInShift = await db.orders
     .where('closedAt')
@@ -94,18 +132,20 @@ export async function shiftSummary(shift: Shift): Promise<ShiftSummary> {
     expenses,
     outside,
     net: cash + cliq - expenses - outside,
-    expectedCash: shift.openingCash + cash - expenses,
+    expectedCash: expectedCashOf(shift, { cash, cliqStaff, expenses }),
     paidOrders: closedInShift.filter((o) => o.status === 'paid').length,
     loyalty: closedInShift.filter((o) => o.status === 'paid').reduce((s, o) => s + (o.loyaltyDiscount ?? 0), 0),
     manual: closedInShift.filter((o) => o.status === 'paid').reduce((s, o) => s + (o.manualDiscount?.amount ?? 0), 0),
-    cliqSplit: splitCliq(counted),
-    cliqStaff: splitCliq(counted)
-      .filter((r) => r.isStaff)
-      .reduce((s, r) => s + r.amount, 0),
+    cliqSplit,
+    cliqStaff,
     voidOrders: closedInShift.filter((o) => o.status === 'void').length,
     staffIds: [...new Set(counted.map((p) => p.staffId))],
   }
 }
+
+/** المفروض بالدرج: الكليك على حساب الموظف بيحط مقابله كاش بالدرج. */
+export const expectedCashOf = (shift: Shift, t: { cash: number; cliqStaff: number; expenses: number }) =>
+  shift.openingCash + t.cash + t.cliqStaff - t.expenses
 
 export const expenseSource = (e: Expense): ExpenseSource => e.source ?? 'drawer'
 

@@ -47,7 +47,7 @@ function CliqForm({ initial }: { initial: CliqSettings }) {
       <h2 className="mb-1 font-display text-xl text-green">حسابات الكليك</h2>
       <p className="mb-4 text-sm text-ink/60">
         لما الموظف يختار كليك، بيختار على حساب مين. «التلقائي» بيكون مختار لحاله. وفي كمان خيار «الموظف اللي فاتح الشيفت»، وهاد
-        بيطلع بتسكير الشيفت «لازم يتسلّم».
+        الموظف بيحط مقابله كاش بالدرج، فبينحسب ضمن المفروض بالدرج.
       </p>
       <ul className="flex flex-col gap-2">
         {accounts.map((a, i) => (

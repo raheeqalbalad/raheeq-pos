@@ -186,11 +186,8 @@ function ReportBody({ report, mode }: { report: Report; mode: Mode }) {
             <h3 className="mb-2 text-sm font-bold text-green">الكليك حسب الحساب</h3>
             <ul className="flex flex-col gap-1">
               {report.cliqSplit.map((r) => (
-                <li
-                  key={`${r.isStaff}${r.name}`}
-                  className={`flex items-baseline justify-between rounded-lg px-3 py-1.5 ${r.isStaff ? 'bg-red-800/10 font-bold text-red-900' : ''}`}
-                >
-                  <span>{r.isStaff ? `كليك على حساب الموظف (${r.name}) — لازم يتسلّم` : r.name}</span>
+                <li key={`${r.isStaff}${r.name}`} className="flex items-baseline justify-between rounded-lg px-3 py-1.5">
+                  <span>{r.isStaff ? `${r.name} (على حساب الموظف، بيتحط كاش بالدرج)` : r.name}</span>
                   <span className="num">{formatJod(r.amount)}</span>
                 </li>
               ))}
@@ -247,6 +244,10 @@ function ReportBody({ report, mode }: { report: Report; mode: Mode }) {
           />
         </Card>
       )}
+
+      <Card title="فروقات الدرج حسب الموظف">
+        <DrawerByStaff rows={report.drawerByStaff} days={report.days} />
+      </Card>
 
       <Card title="الخصومات">
         <Discounts loyalty={t.loyalty} manual={t.manual} rows={report.manualDiscounts} />
@@ -575,6 +576,71 @@ function BackupTools() {
         </Sheet>
       )}
       {sheet}
+    </div>
+  )
+}
+
+/** فرق الدرج بينسجّل على الموظف اللي فاتح الشيفت. زيادة بالأخضر، نقص بالأحمر. */
+function DrawerByStaff({ rows, days }: { rows: Report['drawerByStaff']; days: Report['days'] }) {
+  const names = useLiveQuery(async () => new Map((await db.users.toArray()).map((u) => [u.id!, u.name])), [])
+  if (!rows.length) return <p className="text-ink/50">ما في شيفتات مسكّرة بهالفترة</p>
+  const signed = (v: number) => (
+    <span className={`num font-bold ${v > 0 ? 'text-emerald-800' : v < 0 ? 'text-red-800' : 'text-green'}`}>
+      {v === 0 ? '✓' : `${v > 0 ? '+' : '−'}${formatJod(Math.abs(v))}`}
+    </span>
+  )
+  const months = [...new Set(rows.map((r) => r.month))]
+  const diffs = days.filter((d) => d.drawerDiff)
+  return (
+    <div className="flex flex-col gap-4">
+      {months.map((m) => (
+        <div key={m}>
+          <h3 className="mb-1 text-sm font-bold text-green">{monthLabel(m)}</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-cream-200 text-ink/60">
+                  {['الموظف', 'شيفتات', 'زيادة', 'نقص', 'الصافي'].map((h) => (
+                    <th key={h} className="px-2 py-2 text-start font-medium whitespace-nowrap">
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {rows
+                  .filter((r) => r.month === m)
+                  .map((r) => (
+                    <tr key={r.userId} className="border-b border-cream-200/60">
+                      <td className="px-2 py-2 font-medium whitespace-nowrap text-green">{names?.get(r.userId) ?? '—'}</td>
+                      <td className="px-2 py-2">
+                        <span className="num">{r.shifts}</span>
+                      </td>
+                      <td className="px-2 py-2">{r.over ? signed(r.over) : <span className="num text-ink/40">0.00</span>}</td>
+                      <td className="px-2 py-2">{r.short ? signed(-r.short) : <span className="num text-ink/40">0.00</span>}</td>
+                      <td className="px-2 py-2">{signed(r.over - r.short)}</td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ))}
+      {diffs.length > 0 && (
+        <div>
+          <h3 className="mb-1 text-sm font-bold text-green">كل فرق لحاله</h3>
+          <ul className="flex flex-col gap-1 text-sm">
+            {diffs.map((d) => (
+              <li key={d.shift.id} className="flex items-baseline justify-between gap-2 rounded-lg px-2 py-1 odd:bg-cream-200/50">
+                <span>
+                  {dayLabel(d.shift.openedAt)} · {names?.get(d.shift.staffId) ?? '—'}
+                </span>
+                {signed(d.drawerDiff!)}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   )
 }

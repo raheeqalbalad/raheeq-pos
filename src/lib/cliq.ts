@@ -2,7 +2,7 @@ import { db } from '../db/db'
 import type { CliqSettings, Payment, Shift } from '../db/types'
 
 // حسابات الكليك: الكليك بينحوّل على حساب شخص معيّن. إذا انحوّل على حساب الموظف اللي فاتح
-// الشيفت، المبلغ لازم يتسلّم منه، فبيطلع سطر لحاله بتسكير الشيفت والتقارير.
+// الشيفت، الموظف بيحط مقابله كاش بالدرج، فبينحسب ضمن المفروض بالدرج.
 
 const KEY = 'cliq'
 export const STAFF_PREFIX = 'staff:'
@@ -31,7 +31,7 @@ export async function saveCliqSettings(s: CliqSettings) {
 export interface CliqChoice {
   key: string
   name: string
-  /** على حساب الموظف: لازم يتسلّم منه */
+  /** على حساب الموظف: بيحط مقابله كاش بالدرج */
   isStaff: boolean
 }
 
@@ -54,14 +54,18 @@ export interface CliqSplitRow {
   isStaff: boolean
 }
 
-/** الكليك مقسوم حسب الحساب (الدفعات القديمة بدون حساب: «بدون حساب»). */
-export function splitCliq(payments: Payment[]): CliqSplitRow[] {
+/**
+ * الكليك مقسوم حسب الحساب، بالاسم الحالي من الإعدادات (لو المالك غيّر اسم الحساب، بيتغيّر هون كمان).
+ * الدفعات اللي ما إلها حساب (قديمة) بتنحسب على الحساب التلقائي.
+ */
+export function splitCliq(payments: Payment[], settings: CliqSettings): CliqSplitRow[] {
+  const names = new Map(settings.accounts.map((a) => [a.id, a.name]))
   const map = new Map<string, CliqSplitRow>()
   for (const p of payments) {
     if (p.method !== 'cliq') continue
     const isStaff = isStaffCliq(p)
-    const name = p.cliqAccountName ?? 'بدون حساب'
-    const key = `${isStaff ? 's' : 'a'}|${name}`
+    const key = p.cliqAccount ?? settings.defaultId
+    const name = (isStaff ? undefined : names.get(key)) ?? p.cliqAccountName ?? names.get(settings.defaultId) ?? 'كليك'
     const row = map.get(key) ?? { name, amount: 0, isStaff }
     row.amount += p.amount
     map.set(key, row)

@@ -1,7 +1,7 @@
 import { db } from '../db/db'
 import type { Expense, ExpenseSource, Order, OrderLine, Shift } from '../db/types'
-import { expenseSource, withdrawnOf } from './shift'
-import { splitCliq, type CliqSplitRow } from './cliq'
+import { expectedCashOf, expenseSource, withdrawnOf } from './shift'
+import { getCliqSettings, isStaffCliq, splitCliq, type CliqSplitRow } from './cliq'
 
 // «يوم الشغل» = شيفت (من فتحه لتسكيره)، مش اليوم بالتقويم.
 // بيع بعد نص الليل بينحسب على نفس يوم الشغل، والشهر بيتحدد من تاريخ فتح الشيفت.
@@ -61,7 +61,7 @@ export interface Totals {
   kids: number
   /** مبيعات الطلبات اللي إلها عدد زباين (لمعدّل الصرف للشخص) */
   guestSales: number
-  /** كليك على حساب الموظف (لازم يتسلّم) */
+  /** كليك على حساب الموظف (بيتحط مقابله كاش بالدرج) */
   cliqStaff: number
 }
 
@@ -71,6 +71,17 @@ export interface DayRow extends Totals {
   drawerDiff?: number
   /** المسحوب من الدرج عند التسكير */
   withdrawn?: number
+}
+
+/** فروقات الدرج لموظف بشهر (الفرق بينسجّل على الموظف اللي فاتح الشيفت) */
+export interface DrawerStaffRow {
+  month: string
+  userId: number
+  shifts: number
+  /** مجموع الزيادات */
+  over: number
+  /** مجموع النقص (رقم موجب) */
+  short: number
 }
 
 export interface MonthRow extends Totals {
@@ -125,6 +136,8 @@ export interface Report {
   /** الكليك حسب الحساب */
   cliqSplit: CliqSplitRow[]
   manualDiscounts: ManualDiscountRow[]
+  /** فروقات الدرج لكل موظف بكل شهر */
+  drawerByStaff: DrawerStaffRow[]
   days: DayRow[]
   months: MonthRow[]
   items: ItemRow[]
@@ -220,7 +233,7 @@ export async function buildReport(shifts: Shift[]): Promise<Report> {
     row[p.method] += p.amount
     row.sales += p.amount
   }
-  for (const p of counted) if (p.method === 'cliq' && p.cliqAccount?.startsWith('staff:')) byShift.get(p.shiftId)!.cliqStaff += p.amount
+  for (const p of counted) if (p.method === 'cliq' && isStaffCliq(p)) byShift.get(p.shiftId)!.cliqStaff += p.amount
   for (const e of expenses) {
     const row = byShift.get(e.shiftId)!
     if (expenseSource(e) === 'outside') row.outside += e.amount
@@ -243,13 +256,29 @@ export async function buildReport(shifts: Shift[]): Promise<Report> {
   const days = [...byShift.values()]
   for (const d of days) {
     d.net = d.sales - d.expenses - d.outside
-    // فرق الدرج بمصاريف الدرج بس
-    if (d.shift.countedCash !== undefined) {
-      d.drawerDiff = d.shift.countedCash - (d.shift.openingCash + d.cash - d.expenses)
+    // فرق الدرج (للشيفتات المسكّرة): مصاريف الدرج بس، والكليك على حساب الموظف بيتحط كاش
+    if (d.shift.closedAt && d.shift.countedCash !== undefined) {
+      d.drawerDiff = d.shift.countedCash - expectedCashOf(d.shift, d)
       d.withdrawn = withdrawnOf(d.shift)
     }
   }
   days.sort((a, b) => b.shift.openedAt - a.shift.openedAt)
+
+  // فروقات الدرج لكل موظف بالشهر
+  const drawerMap = new Map<string, DrawerStaffRow>()
+  for (const d of days) {
+    if (d.drawerDiff === undefined) continue
+    const month = monthKey(d.shift.openedAt)
+    const key = `${month}|${d.shift.staffId}`
+    const row = drawerMap.get(key) ?? { month, userId: d.shift.staffId, shifts: 0, over: 0, short: 0 }
+    row.shifts++
+    if (d.drawerDiff > 0) row.over += d.drawerDiff
+    else row.short -= d.drawerDiff
+    drawerMap.set(key, row)
+  }
+  const drawerByStaff = [...drawerMap.values()].sort(
+    (a, b) => b.month.localeCompare(a.month) || b.short - b.over - (a.short - a.over),
+  )
 
   // الشهور
   const monthMap = new Map<string, MonthRow>()
@@ -335,8 +364,9 @@ export async function buildReport(shifts: Shift[]): Promise<Report> {
   return {
     totals,
     cancellations,
-    cliqSplit: splitCliq(counted),
+    cliqSplit: splitCliq(counted, await getCliqSettings()),
     manualDiscounts,
+    drawerByStaff,
     days,
     months,
     items,

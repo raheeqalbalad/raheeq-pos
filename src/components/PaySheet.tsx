@@ -150,7 +150,7 @@ export default function PaySheet({
               })}
             </div>
             {cliqChoice?.isStaff && (
-              <p className="mt-1 text-sm font-bold text-red-800">الكليك على حساب الموظف لازم يتسلّم منه بتسكير الشيفت</p>
+              <p className="mt-1 text-sm font-bold text-red-800">الكليك على حساب الموظف: بيحط مقابله كاش بالدرج</p>
             )}
           </div>
         )}
@@ -309,7 +309,7 @@ function ConfirmPay({
       </div>
       <div className={`mt-3 rounded-xl px-4 py-3 text-center text-lg font-bold ${method === 'cash' ? 'bg-green text-cream' : cliq?.isStaff ? 'bg-red-800 text-cream' : 'bg-gold text-green'}`}>
         {METHOD_LABEL[method]}
-        {method === 'cliq' && cliq && <> — على حساب {cliq.name}{cliq.isStaff ? ' (الموظف، لازم يتسلّم)' : ''}</>}
+        {method === 'cliq' && cliq && <> — على حساب {cliq.name}{cliq.isStaff ? ' (الموظف، بيحط مقابله كاش بالدرج)' : ''}</>}
       </div>
       <div className="mt-4 grid grid-cols-2 gap-3">
         <button type="button" onClick={onBack} className="h-16 rounded-2xl bg-cream-200 text-lg font-bold text-green active:bg-green-100">

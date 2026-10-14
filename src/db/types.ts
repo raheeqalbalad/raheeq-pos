@@ -186,7 +186,10 @@ export interface Shift {
   openingCash: number
   closedAt?: number
   closedBy?: number
+  /** العدّ الأعمى: بينحفظ أول ما الموظف يأكّد العدّ (قبل ما يشوف المفروض) */
   countedCash?: number
+  countedAt?: number
+  countedBy?: number
   /** اللي انترك بالدرج للشيفت الجاي. الباقي (المعدود − المتروك) انسحب. */
   leftInDrawer?: number
 }
@@ -245,7 +248,7 @@ export interface StockCount {
 
 // ===== سجل التعديلات (مين عدّل شو ومتى، وشو كان قبل) =====
 
-export type AuditKind = 'line' | 'void' | 'payment' | 'expense-edit' | 'expense-delete' | 'discount'
+export type AuditKind = 'line' | 'void' | 'payment' | 'expense-edit' | 'expense-delete' | 'discount' | 'recount'
 
 export interface AuditEntry {
   id?: number
