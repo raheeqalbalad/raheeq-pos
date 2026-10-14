@@ -5,6 +5,7 @@ import { getCliqSettings, saveCliqSettings } from '../lib/cliq'
 import { getDiscountSettings, saveDiscountSettings } from '../lib/discounts'
 import { newId } from '../lib/menu'
 import { getGoal, saveGoalPlan, type GoalSettings } from '../lib/goal'
+import { getFloorSettings, saveFloorSettings, type FloorSettings } from '../lib/floor'
 import { formatJod, toFils } from '../lib/money'
 import MoneyInput from '../components/MoneyInput'
 
@@ -15,11 +16,13 @@ export default function SettingsScreen() {
   const cliq = useLiveQuery(getCliqSettings, [])
   const discounts = useLiveQuery(getDiscountSettings, [])
   const goal = useLiveQuery(getGoal, [])
+  const floor = useLiveQuery(getFloorSettings, [])
   return (
     <main className="flex-1 overflow-y-auto p-4">
       <div className="mx-auto flex max-w-2xl flex-col gap-4">
         {cliq && <CliqForm initial={cliq} />}
         {discounts && <DiscountForm initial={discounts} />}
+        {floor && <FloorForm initial={floor} />}
         {goal && <GoalForm initial={goal} />}
         <p className="text-center text-sm text-ink/50">إعدادات كرت الولاء بشاشة «الزباين».</p>
       </div>
@@ -174,6 +177,56 @@ function GoalForm({ initial }: { initial: GoalSettings }) {
       </div>
       <button type="button" onClick={save} className="mt-4 h-14 w-full rounded-2xl bg-gold text-lg font-bold text-green active:bg-gold-600">
         حفظ الهدف
+      </button>
+      <div className="mt-2">
+        <Saved text={msg} />
+      </div>
+    </section>
+  )
+}
+
+function FloorForm({ initial }: { initial: FloorSettings }) {
+  const [coal, setCoal] = useState(String(initial.coalMinutes))
+  const [idle, setIdle] = useState(String(initial.idleMinutes))
+  const [msg, setMsg] = useState('')
+
+  async function save() {
+    try {
+      await saveFloorSettings({ coalMinutes: Number(coal), idleMinutes: Number(idle) })
+      setMsg('انحفظ ✓')
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : 'ما زبط')
+    }
+    setTimeout(() => setMsg(''), 3000)
+  }
+
+  const minutesInput = (value: string, set: (v: string) => void) => (
+    <input
+      value={value}
+      onChange={(e) => set(e.target.value.replace(/\D/g, '').slice(0, 3))}
+      inputMode="numeric"
+      className={`${inputClass} num w-24 text-center`}
+    />
+  )
+
+  return (
+    <section className="rounded-3xl bg-white/70 p-5 ring-1 ring-cream-200">
+      <h2 className="mb-1 font-display text-xl text-green">الطاولات</h2>
+      <p className="mb-4 text-sm text-ink/60">تنبيهات شاشة الطاولات للموظف.</p>
+      <div className="flex flex-col gap-3">
+        <label className="flex flex-wrap items-center gap-2">
+          <span className="w-56">🔥 الفحم بيتغيّر كل</span>
+          {minutesInput(coal, setCoal)}
+          دقيقة
+        </label>
+        <label className="flex flex-wrap items-center gap-2">
+          <span className="w-56">طاولة ساكتة بعد</span>
+          {minutesInput(idle, setIdle)}
+          دقيقة بدون طلب
+        </label>
+      </div>
+      <button type="button" onClick={save} className="mt-4 h-14 w-full rounded-2xl bg-gold text-lg font-bold text-green active:bg-gold-600">
+        حفظ
       </button>
       <div className="mt-2">
         <Saved text={msg} />

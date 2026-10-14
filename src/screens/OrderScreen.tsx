@@ -27,6 +27,8 @@ import PaymentsList from '../components/PaymentsList'
 import { refreshLoyaltyDiscount } from '../lib/customers'
 import { refreshManualDiscount } from '../lib/discounts'
 import { useOwnerGate } from '../lib/useOwnerGate'
+import CoalSheet, { useNow } from '../components/CoalSheet'
+import { coalDue, getFloorSettings } from '../lib/floor'
 
 export type OrderScreenProps = {
   orderId?: number
@@ -61,6 +63,9 @@ export default function OrderScreen({ orderId: initialId, target, title, onDone,
   const { requireOwner, sheet: ownerSheet } = useOwnerGate()
   const [panelOpen, setPanelOpen] = useState(false)
   const [notice, setNotice] = useState('')
+  const [coalOpen, setCoalOpen] = useState(false)
+  const floor = useLiveQuery(getFloorSettings, [])
+  const now = useNow()
 
   const order = useLiveQuery(() => (orderId ? db.orders.get(orderId) : undefined), [orderId])
   const lines = useLiveQuery(
@@ -85,6 +90,8 @@ export default function OrderScreen({ orderId: initialId, target, title, onDone,
     return m
   }, [lines])
 
+  const coals = order?.coals ?? []
+  const dueCoals = floor ? coals.filter((t) => coalDue(t, floor, now)).length : 0
   const displayTitle = order?.label ?? title
   const flash = (msg: string) => {
     setNotice(msg)
@@ -266,6 +273,16 @@ export default function OrderScreen({ orderId: initialId, target, title, onDone,
                 👥 <span className="num">{guestsTotal(order?.guests ?? pendingGuests.current) || '+'}</span>
               </button>
             )}
+            {coals.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setCoalOpen(true)}
+                aria-label="الفحم"
+                className={`h-12 shrink-0 rounded-xl px-3 ${dueCoals ? 'animate-pulse bg-gold font-bold text-green' : 'border border-cream/30 active:bg-gold active:text-green'}`}
+              >
+                {dueCoals ? '🔥' : '💨'} <span className="num">{dueCoals || coals.length}</span>
+              </button>
+            )}
             {orderId && (
               <button
                 type="button"
@@ -313,6 +330,7 @@ export default function OrderScreen({ orderId: initialId, target, title, onDone,
         </div>
       )}
 
+      {coalOpen && orderId && <CoalSheet orderId={orderId} onClose={() => setCoalOpen(false)} />}
       {optionsFor && <OptionsSheet item={optionsFor} onAdd={(o) => add(optionsFor, o)} onClose={() => setOptionsFor(null)} />}
       {editLine && <LineSheet line={editLine} onResult={handleLineResult} onClose={() => setEditLine(null)} />}
       {paying && orderId && (

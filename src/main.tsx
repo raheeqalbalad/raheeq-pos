@@ -5,6 +5,7 @@ import App from './App'
 import { seedIfEmpty, seedStockIfEmpty } from './db/seed'
 import { ensureGoal } from './lib/goal'
 import { ensureOffers } from './lib/offers'
+import { ensureCoalReset } from './lib/floor'
 import { SessionProvider } from './lib/session'
 import { db } from './db/db'
 import { keepScreenOn } from './lib/wakeLock'
@@ -35,7 +36,7 @@ function Boot() {
     db.on('blocked', onBlocked)
     const slow = setTimeout(() => !done && setState('slow'), 10_000)
     // العروض بعد تعبئة المنيو الأولى (هاي بتشتغل بس إذا ما في أقسام)
-    Promise.all([seedIfEmpty().then(ensureOffers), seedStockIfEmpty(), ensureGoal()])
+    Promise.all([seedIfEmpty().then(ensureOffers).then(ensureCoalReset), seedStockIfEmpty(), ensureGoal()])
       .then(() => {
         done = true
         setState('ready')

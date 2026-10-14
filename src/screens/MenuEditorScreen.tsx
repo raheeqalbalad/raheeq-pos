@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db } from '../db/db'
+import { db, HOOKAH_LIST_ID } from '../db/db'
 import type { Item, ItemSchedule, OptionChoice, OptionGroup, OptionList } from '../db/types'
 import { scheduleParts, WEEK_DAYS } from '../lib/offers'
 import { addCategory, deleteItem, moveCategory, moveItem, newId, saveItem, saveOptionList, updateCategory } from '../lib/menu'
@@ -411,6 +411,8 @@ function ItemEditor({ initial, onClose }: { initial: Item; onClose: () => void }
   const [isSeasonal, setIsSeasonal] = useState(initial.isSeasonal)
   const [groups, setGroups] = useState<DraftGroup[]>(toDraft(initial.options))
   const [schedule, setSchedule] = useState<ItemSchedule>(initial.schedule ?? {})
+  const [coalReset, setCoalReset] = useState(!!initial.coalReset)
+  const hasHookah = groups.some((g) => g.listId === HOOKAH_LIST_ID)
   const isOfferCategory = categories?.find((c) => c.id === categoryId)?.kind === 'offers'
   const [editingList, setEditingList] = useState<OptionList | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -447,6 +449,7 @@ function ItemEditor({ initial, onClose }: { initial: Item; onClose: () => void }
       isSeasonal,
       description: description.trim() || undefined,
       schedule: schedule.from || schedule.days?.length ? schedule : undefined,
+      coalReset: hasHookah && coalReset ? true : undefined,
       options: groups.map(({ choices, ...g }) => ({
         ...g,
         pick: g.pick && g.pick > 1 ? g.pick : undefined,
@@ -574,6 +577,14 @@ function ItemEditor({ initial, onClose }: { initial: Item; onClose: () => void }
               )
             })}
           </div>
+          {hasHookah && (
+            <label className="mt-3 flex min-h-12 items-center gap-2 rounded-xl bg-white px-3 text-sm ring-1 ring-cream-200">
+              <input type="checkbox" checked={coalReset} onChange={(e) => setCoalReset(e.target.checked)} className="size-5 accent-green" />
+              <span>
+                هاد «تغيير راس»: بيصفّر مؤقت الفحم للأرجيلة الأقدم (بدل ما يبلّش مؤقت أرجيلة جديدة)
+              </span>
+            </label>
+          )}
           <div className="mt-3 flex flex-wrap gap-2">
             <button
               type="button"

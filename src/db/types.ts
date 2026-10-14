@@ -72,6 +72,8 @@ export interface Item {
   active: boolean
   isSeasonal: boolean
   schedule?: ItemSchedule
+  /** «تغيير راس»: بيصفّر مؤقت الفحم بدل ما يبلّش مؤقت جديد */
+  coalReset?: boolean
   sort: number
   options: OptionGroup[]
 }
@@ -112,6 +114,22 @@ export interface Order {
   guests?: Guests
   /** خصم يدوي (منفصل عن خصم الولاء) */
   manualDiscount?: ManualDiscount
+  /** آخر مرة انضاف صنف (للطاولة الساكتة) */
+  lastAddedAt?: number
+  /** مؤقت فحم لكل أرجيلة بالطلب */
+  coals?: CoalTimer[]
+}
+
+export interface CoalTimer {
+  id: string
+  /** سطر الأرجيلة بالطلب */
+  lineId: number
+  /** النكهة */
+  label: string
+  /** من وقت الإضافة أو آخر تغيير فحم */
+  since: number
+  /** كم مرة تغيّر الفحم */
+  changes: number
 }
 
 export interface ManualDiscount {
@@ -156,6 +174,8 @@ export interface OrderLine {
   costSnapshot?: number
   /** الصنف كان عرض وقت البيع */
   isOffer?: boolean
+  /** نكهة كل أرجيلة بوحدة وحدة من السطر (للأراجيل ومؤقت الفحم) */
+  hookahs?: string[]
   qty: number
   options: LineOption[]
   note?: string
@@ -210,6 +230,9 @@ export interface Shift {
   openingCash: number
   closedAt?: number
   closedBy?: number
+  /** مهام الفتح والتسكير: مين علّم على كل مهمة ومتى */
+  openChecks?: CheckMark[]
+  closeChecks?: CheckMark[]
   /** العدّ الأعمى: بينحفظ أول ما الموظف يأكّد العدّ (قبل ما يشوف المفروض) */
   countedCash?: number
   countedAt?: number
@@ -319,4 +342,19 @@ export interface LoyaltySettings {
 export interface Setting {
   key: string
   value: unknown
+}
+
+// ===== مهام الفتح والتسكير =====
+
+export interface ChecklistTask {
+  id: string
+  text: string
+}
+
+export interface CheckMark {
+  taskId: string
+  /** نص المهمة وقت التعليم (لو تغيّرت بعدين) */
+  text: string
+  by: number
+  at: number
 }

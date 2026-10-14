@@ -1,4 +1,5 @@
 import { db } from '../db/db'
+import { headChange, headChangeLabel, hookahLabels, syncCoals } from './floor'
 import type { CafeTable, Item, LineOption, Order, OrderLine, Payment, PaymentMethod } from '../db/types'
 import { getOpenShift } from './shift'
 import { logAudit, logPaymentCorrection } from './audit'
@@ -82,7 +83,9 @@ export async function addItem(
   staffId: number,
 ): Promise<number> {
   const id = orderId ?? (await openOrder(target, staffId))
-  await db.transaction('rw', ['orderLines', 'categories'], async () => {
+  const hookahs = hookahLabels(item, options)
+  await db.transaction('rw', ['orders', 'orderLines', 'categories'], async () => {
+    await db.orders.update(id, { lastAddedAt: Date.now() })
     const isOffer = (await db.categories.get(item.categoryId))?.kind === 'offers'
     const existing = await db.orderLines
       .where('orderId')
@@ -100,11 +103,15 @@ export async function addItem(
       priceSnapshot: item.price + options.reduce((s, o) => s + o.priceDelta, 0),
       ...(item.cost !== undefined ? { costSnapshot: item.cost + options.reduce((s, o) => s + (o.costDelta ?? 0), 0) } : {}),
       ...(isOffer ? { isOffer: true } : {}),
+      ...(hookahs.length ? { hookahs } : {}),
       qty: 1,
       options,
       createdAt: Date.now(),
     })
   })
+  // مؤقت الفحم: أرجيلة جديدة بتبلّش مؤقت، و«تغيير راس» بيصفّر واحد
+  if (item.coalReset) await headChange(id, headChangeLabel(item, options))
+  else if (hookahs.length) await syncCoals(id)
   return id
 }
 
@@ -141,7 +148,9 @@ export async function setLineQty(line: OrderLine, qty: number, byUserId: number)
 
     if (qty > 0) {
       await db.orderLines.update(line.id!, { qty })
+      if (qty > line.qty) await db.orders.update(line.orderId, { lastAddedAt: Date.now() })
       await logRemoval()
+      if (line.hookahs) await syncCoals(line.orderId)
       return 'ok'
     }
     await db.orderLines.delete(line.id!)
@@ -151,6 +160,7 @@ export async function setLineQty(line: OrderLine, qty: number, byUserId: number)
       return 'order-removed'
     }
     await logRemoval()
+    if (line.hookahs) await syncCoals(line.orderId)
     return 'ok'
   })
 }
