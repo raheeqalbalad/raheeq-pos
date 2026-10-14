@@ -6,22 +6,26 @@ import { getDiscountSettings, saveDiscountSettings } from '../lib/discounts'
 import { newId } from '../lib/menu'
 import { getGoal, saveGoalPlan, type GoalSettings } from '../lib/goal'
 import { getFloorSettings, saveFloorSettings, type FloorSettings } from '../lib/floor'
+import { getChecklists, saveChecklists, type Checklists } from '../lib/checklists'
+import type { ChecklistTask } from '../db/types'
 import { formatJod, toFils } from '../lib/money'
 import MoneyInput from '../components/MoneyInput'
 
 const inputClass = 'h-12 min-w-0 rounded-xl bg-white px-3 text-lg ring-1 ring-cream-200 outline-none focus:ring-2 focus:ring-green'
 
-/** إعدادات المالك: حسابات الكليك، وحد خصم الموظف، وهدف التوفير. (إعدادات الولاء بشاشة الزباين.) */
+/** إعدادات المالك: حسابات الكليك، وحد خصم الموظف، ومهام الفتح والتسكير، والطاولات، وهدف التوفير. (إعدادات الولاء بشاشة الزباين.) */
 export default function SettingsScreen() {
   const cliq = useLiveQuery(getCliqSettings, [])
   const discounts = useLiveQuery(getDiscountSettings, [])
   const goal = useLiveQuery(getGoal, [])
   const floor = useLiveQuery(getFloorSettings, [])
+  const checklists = useLiveQuery(getChecklists, [])
   return (
     <main className="flex-1 overflow-y-auto p-4">
       <div className="mx-auto flex max-w-2xl flex-col gap-4">
         {cliq && <CliqForm initial={cliq} />}
         {discounts && <DiscountForm initial={discounts} />}
+        {checklists && <ChecklistsForm initial={checklists} />}
         {floor && <FloorForm initial={floor} />}
         {goal && <GoalForm initial={goal} />}
         <p className="text-center text-sm text-ink/50">إعدادات كرت الولاء بشاشة «الزباين».</p>
@@ -227,6 +231,73 @@ function FloorForm({ initial }: { initial: FloorSettings }) {
       </div>
       <button type="button" onClick={save} className="mt-4 h-14 w-full rounded-2xl bg-gold text-lg font-bold text-green active:bg-gold-600">
         حفظ
+      </button>
+      <div className="mt-2">
+        <Saved text={msg} />
+      </div>
+    </section>
+  )
+}
+
+function TasksEditor({ title, tasks, onChange, placeholder }: { title: string; tasks: ChecklistTask[]; onChange: (t: ChecklistTask[]) => void; placeholder: string }) {
+  return (
+    <div>
+      <h3 className="mb-2 font-bold text-green">{title}</h3>
+      <ul className="flex flex-col gap-2">
+        {tasks.map((t, i) => (
+          <li key={t.id} className="flex gap-2">
+            <input
+              value={t.text}
+              onChange={(e) => onChange(tasks.map((x, j) => (j === i ? { ...x, text: e.target.value } : x)))}
+              placeholder={placeholder}
+              className={`${inputClass} flex-1`}
+            />
+            <button
+              type="button"
+              aria-label="شيل المهمة"
+              onClick={() => onChange(tasks.filter((_, j) => j !== i))}
+              className="h-12 w-12 shrink-0 rounded-xl text-red-800 active:bg-red-700/10"
+            >
+              ✕
+            </button>
+          </li>
+        ))}
+      </ul>
+      {!tasks.length && <p className="text-sm text-ink/50">ما في مهام (الخطوة ما بتطلع للموظف)</p>}
+      <button
+        type="button"
+        onClick={() => onChange([...tasks, { id: newId(), text: '' }])}
+        className="mt-2 h-12 rounded-xl px-4 text-green ring-1 ring-green/30 active:bg-cream-200"
+      >
+        + مهمة
+      </button>
+    </div>
+  )
+}
+
+function ChecklistsForm({ initial }: { initial: Checklists }) {
+  const [open, setOpen] = useState(initial.open)
+  const [close, setClose] = useState(initial.close)
+  const [msg, setMsg] = useState('')
+
+  async function save() {
+    await saveChecklists({ open, close })
+    setMsg('انحفظ ✓')
+    setTimeout(() => setMsg(''), 3000)
+  }
+
+  return (
+    <section className="rounded-3xl bg-white/70 p-5 ring-1 ring-cream-200">
+      <h2 className="mb-1 font-display text-xl text-green">مهام الفتح والتسكير</h2>
+      <p className="mb-4 text-sm text-ink/60">
+        الموظف لازم يعلّم على كل المهام قبل ما يفتح الشيفت أو يعدّ الدرج بالتسكير. بينحفظ مين علّم ومتى، وبيبيّن بسجل الأيام.
+      </p>
+      <div className="grid gap-5 md:grid-cols-2">
+        <TasksEditor title="عند الفتح" tasks={open} onChange={setOpen} placeholder="مثلًا: تجهيز الفحم" />
+        <TasksEditor title="عند التسكير" tasks={close} onChange={setClose} placeholder="مثلًا: تنظيف الطاولات" />
+      </div>
+      <button type="button" onClick={save} className="mt-4 h-14 w-full rounded-2xl bg-gold text-lg font-bold text-green active:bg-gold-600">
+        حفظ المهام
       </button>
       <div className="mt-2">
         <Saved text={msg} />

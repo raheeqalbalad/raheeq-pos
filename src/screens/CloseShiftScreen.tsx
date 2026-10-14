@@ -6,6 +6,8 @@ import { closeShift, countDrawer, leftInDrawerOf, resetDrawerCount, shiftSummary
 import { formatJod, toFils } from '../lib/money'
 import { useSession } from '../lib/session'
 import { useOwnerGate } from '../lib/useOwnerGate'
+import { allChecked, getChecklists, toggleCloseCheck } from '../lib/checklists'
+import { ChecklistInput, ChecklistView } from '../components/Checklist'
 import { timeLabel } from '../components/PaymentsList'
 import MoneyInput from '../components/MoneyInput'
 import Sheet from '../components/Sheet'
@@ -147,16 +149,28 @@ function OpenOrdersWarning() {
 }
 
 /**
- * تسكير الشيفت بخطوتين:
+ * تسكير الشيفت:
+ * ٠. مهام التسكير (إذا المالك كاتب مهام): لازم يعلّم عليها كلها.
  * ١. العدّ الأعمى: الموظف بيكتب كم عدّ وبيأكّد، بدون ما يشوف المفروض. الرقم بينحفظ على الشيفت.
  * ٢. النتيجة: المعدود والمفروض والفرق، وبعدين كم تركت للشيفت الجاي والمسحوب.
  */
 export default function CloseShiftScreen({ shift, onClosed }: { shift: Shift; onClosed: (id: number) => void }) {
+  const { user } = useSession()
+  const tasks = useLiveQuery(async () => (await getChecklists()).close, [])
+  if (!tasks) return null
+  const checked = allChecked(tasks, shift.closeChecks)
   return (
     <main className="flex-1 overflow-y-auto p-4">
       <div className="mx-auto flex max-w-4xl flex-col gap-4">
         <OpenOrdersWarning />
-        {shift.countedCash === undefined ? <BlindCount shift={shift} /> : <AfterCount shift={shift} onClosed={onClosed} />}
+        {tasks.length > 0 && (
+          <section className="rounded-3xl bg-white/70 p-5 ring-1 ring-cream-200">
+            <h2 className="mb-1 font-display text-xl text-green">مهام التسكير</h2>
+            {!checked && <p className="mb-3 text-sm text-ink/60">علّم على كل مهمة بعد ما تخلّصها، وبعدين بتعدّ الدرج.</p>}
+            <ChecklistInput tasks={tasks} marks={shift.closeChecks ?? []} onToggle={(t) => toggleCloseCheck(shift.id!, t, user!.id!)} />
+          </section>
+        )}
+        {!checked ? null : shift.countedCash === undefined ? <BlindCount shift={shift} /> : <AfterCount shift={shift} onClosed={onClosed} />}
       </div>
     </main>
   )
@@ -343,6 +357,12 @@ export function ClosedShiftScreen({ shiftId, onDone }: { shiftId: number; onDone
             <CountResult counted={shift.countedCash ?? 0} expected={summary.expectedCash} />
             <WithdrawRow left={leftInDrawerOf(shift) ?? 0} withdrawn={withdrawnOf(shift) ?? 0} />
           </section>
+          {!!(shift.openChecks?.length || shift.closeChecks?.length) && (
+            <section className="grid gap-4 rounded-3xl bg-white/70 p-5 ring-1 ring-cream-200 md:grid-cols-2">
+              <ChecklistView title="مهام الفتح" marks={shift.openChecks} />
+              <ChecklistView title="مهام التسكير" marks={shift.closeChecks} />
+            </section>
+          )}
           <SummaryCard shift={shift} summary={summary} />
           <button
             type="button"

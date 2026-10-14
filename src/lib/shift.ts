@@ -1,5 +1,6 @@
 import { db } from '../db/db'
-import type { Expense, ExpenseSource, Shift } from '../db/types'
+import type { CheckMark, Expense, ExpenseSource, Shift } from '../db/types'
+import { allChecked, getChecklists } from './checklists'
 import { getCliqSettings, splitCliq, type CliqSplitRow } from './cliq'
 import { logAudit } from './audit'
 import { formatJod } from './money'
@@ -21,11 +22,12 @@ export async function lastClosedShift(): Promise<Shift | undefined> {
     .first()
 }
 
-export async function openShift(staffId: number, openingCash: number): Promise<number> {
-  return db.transaction('rw', 'shifts', async () => {
+export async function openShift(staffId: number, openingCash: number, openChecks?: CheckMark[]): Promise<number> {
+  return db.transaction('rw', ['shifts', 'settings'], async () => {
     const existing = await getOpenShift()
     if (existing) return existing.id!
-    return (await db.shifts.add({ staffId, openingCash, openedAt: Date.now() }))!
+    if (!allChecked((await getChecklists()).open, openChecks)) throw new Error('علّم على كل مهام الفتح أول')
+    return (await db.shifts.add({ staffId, openingCash, openedAt: Date.now(), ...(openChecks?.length ? { openChecks } : {}) }))!
   })
 }
 
@@ -57,9 +59,10 @@ export async function resetDrawerCount(shiftId: number, byUserId: number, reason
 }
 
 export async function closeShift(shiftId: number, closedBy: number, leftInDrawer: number) {
-  await db.transaction('rw', 'shifts', async () => {
+  await db.transaction('rw', ['shifts', 'settings'], async () => {
     const shift = await db.shifts.get(shiftId)
     if (!shift || shift.closedAt) throw new Error('الشيفت مسكّر')
+    if (!allChecked((await getChecklists()).close, shift.closeChecks)) throw new Error('علّم على كل مهام التسكير أول')
     if (shift.countedCash === undefined) throw new Error('لازم الدرج ينعدّ أول')
     if (leftInDrawer > shift.countedCash) throw new Error('المتروك ما بصير يكون أكثر من المعدود')
     await db.shifts.update(shiftId, { closedAt: Date.now(), closedBy, leftInDrawer })

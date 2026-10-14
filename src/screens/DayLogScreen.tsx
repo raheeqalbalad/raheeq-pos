@@ -12,6 +12,7 @@ import { useSession } from '../lib/session'
 import Sheet from '../components/Sheet'
 import MoneyInput from '../components/MoneyInput'
 import PaymentsList, { METHOD_LABEL } from '../components/PaymentsList'
+import { ChecklistView } from '../components/Checklist'
 
 type Mode = 'day' | 'range'
 
@@ -157,6 +158,13 @@ function DayLog({ shifts }: { shifts: Shift[] }) {
           </div>
         ))}
       </div>
+
+      {!multi && !!(shifts[0].openChecks?.length || shifts[0].closeChecks?.length) && (
+        <section className="grid gap-4 rounded-3xl bg-white/70 p-4 ring-1 ring-cream-200 md:grid-cols-2">
+          <ChecklistView title="مهام الفتح" marks={shifts[0].openChecks} />
+          <ChecklistView title="مهام التسكير" marks={shifts[0].closeChecks} />
+        </section>
+      )}
 
       <section className="rounded-3xl bg-white/70 p-4 ring-1 ring-cream-200">
         <h2 className="mb-3 font-display text-xl text-green">
