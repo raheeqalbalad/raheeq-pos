@@ -1,10 +1,8 @@
 import { useState } from 'react'
-import { useLiveQuery } from 'dexie-react-hooks'
 import type { Order } from '../db/types'
-import { applyManualDiscount, DISCOUNT_REASONS, getDiscountSettings, pctAmount, removeManualDiscount } from '../lib/discounts'
+import { applyManualDiscount, DISCOUNT_REASONS, FINAL_AMOUNT_REASON, NO_REASON, pctAmount, removeManualDiscount } from '../lib/discounts'
 import { formatJod, toFils } from '../lib/money'
 import { useSession } from '../lib/session'
-import { useOwnerGate } from '../lib/useOwnerGate'
 import MoneyInput from './MoneyInput'
 import Sheet from './Sheet'
 
@@ -12,52 +10,37 @@ const QUICK = [10, 20, 50]
 const OTHER = 'غيره'
 
 /**
- * خصم يدوي: نسبة سريعة أو نسبة تانية أو مبلغ ثابت، مع السبب.
- * الموظف بيعطي لحد النسبة المسموحة لحاله، وأكثر بده رمز المالك.
+ * خصم يدوي: نسبة سريعة أو نسبة تانية أو مبلغ ثابت، والسبب اختياري.
+ * بيمشي بدون رمز المالك، وبينسجّل مين عطاه ولمين وقديش ومتى.
  */
 export default function DiscountSheet({ order, subtotal, onClose }: { order: Order; subtotal: number; onClose: () => void }) {
   const { user } = useSession()
-  const { requireOwner, sheet } = useOwnerGate()
-  const settings = useLiveQuery(getDiscountSettings, [])
   const existing = order.manualDiscount
   const [mode, setMode] = useState<'pct' | 'amount'>(existing && !existing.pct ? 'amount' : 'pct')
   const [pct, setPct] = useState(existing?.pct ? String(existing.pct) : '')
   const [amountText, setAmountText] = useState(existing && !existing.pct ? formatJod(existing.amount) : '')
-  const initialReason = existing ? (DISCOUNT_REASONS.includes(existing.reason) ? existing.reason : OTHER) : ''
+  const auto = !existing || existing.reason === NO_REASON || existing.reason === FINAL_AMOUNT_REASON
+  const initialReason = auto ? '' : DISCOUNT_REASONS.includes(existing.reason) ? existing.reason : OTHER
   const [reason, setReason] = useState(initialReason)
   const [otherText, setOtherText] = useState(existing && initialReason === OTHER ? existing.reason : '')
   const [error, setError] = useState('')
 
   const pctNum = Number(pct) || 0
   const amount = mode === 'pct' ? pctAmount(subtotal, pctNum) : toFils(amountText || 0)
-  const effectivePct = subtotal ? (amount / subtotal) * 100 : 0
   const otherDiscounts = order.loyaltyDiscount ?? 0
   const due = Math.max(0, subtotal - otherDiscounts - amount)
-  const finalReason = reason === OTHER ? otherText.trim() : reason
-  const limit = settings?.staffMaxPct ?? 10
-  const needsOwner = user?.role !== 'owner' && effectivePct > limit + 0.001
+  const finalReason = (reason === OTHER ? otherText.trim() : reason) || NO_REASON
 
-  async function apply(approvedBy?: number) {
+  async function submit() {
+    if (!(amount > 0)) return setError('اختار نسبة أو اكتب مبلغ')
+    if (amount > subtotal) return setError('الخصم أكبر من الفاتورة')
     setError('')
     try {
-      await applyManualDiscount(
-        order.id!,
-        { amount, ...(mode === 'pct' ? { pct: pctNum } : {}), reason: finalReason },
-        user!.id!,
-        approvedBy,
-      )
+      await applyManualDiscount(order.id!, { amount, ...(mode === 'pct' ? { pct: pctNum } : {}), reason: finalReason }, user!.id!)
       onClose()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'ما زبط')
     }
-  }
-
-  function submit() {
-    if (!(amount > 0)) return setError('اختار نسبة أو اكتب مبلغ')
-    if (amount > subtotal) return setError('الخصم أكبر من الفاتورة')
-    if (!finalReason) return setError('اختار سبب الخصم')
-    if (needsOwner) requireOwner('خصم أكبر من المسموح', (ownerId) => apply(ownerId), <>الخصم {Math.round(effectivePct)}% أكبر من {limit}%</>)
-    else apply()
   }
 
   const chip = (on: boolean) => `h-12 rounded-xl px-4 font-medium ${on ? 'bg-green text-cream' : 'bg-cream-200 text-green active:bg-green-100'}`
@@ -94,10 +77,12 @@ export default function DiscountSheet({ order, subtotal, onClose }: { order: Ord
         )}
 
         <div>
-          <span className="mb-1 block font-bold text-green">السبب</span>
+          <span className="mb-1 block font-bold text-green">
+            السبب <span className="text-sm font-normal text-ink/50">(اختياري)</span>
+          </span>
           <div className="flex flex-wrap gap-2">
             {[...DISCOUNT_REASONS, OTHER].map((r) => (
-              <button key={r} type="button" onClick={() => setReason(r)} className={chip(reason === r)}>
+              <button key={r} type="button" onClick={() => setReason(reason === r ? '' : r)} className={chip(reason === r)}>
                 {r}
               </button>
             ))}
@@ -131,11 +116,6 @@ export default function DiscountSheet({ order, subtotal, onClose }: { order: Ord
             المطلوب بعد خصم الولاء كمان (<span className="num">{formatJod(otherDiscounts)}</span>)
           </p>
         )}
-        {needsOwner && (
-          <p className="-mt-2 text-sm font-bold text-red-800">
-            أكثر من <span className="num">{limit}%</span>، بده رمز المالك
-          </p>
-        )}
 
         {error && <p className="text-center font-bold text-red-700">{error}</p>}
         <div className="flex gap-3">
@@ -160,7 +140,6 @@ export default function DiscountSheet({ order, subtotal, onClose }: { order: Ord
           </button>
         </div>
       </div>
-      {sheet}
     </Sheet>
   )
 }

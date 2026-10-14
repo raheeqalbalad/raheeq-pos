@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import type { CliqAccount, CliqSettings, DiscountSettings } from '../db/types'
+import type { CliqAccount, CliqSettings } from '../db/types'
 import { getCliqSettings, saveCliqSettings } from '../lib/cliq'
-import { getDiscountSettings, saveDiscountSettings } from '../lib/discounts'
+import { getWaterSettings, saveWaterSettings, type WaterSettings } from '../lib/water'
 import { newId } from '../lib/menu'
 import { getGoal, saveGoalPlan, type GoalSettings } from '../lib/goal'
 import { getFloorSettings, saveFloorSettings, type FloorSettings } from '../lib/floor'
@@ -15,10 +15,10 @@ import MenuQrSection from '../components/MenuQrSection'
 
 const inputClass = 'h-12 min-w-0 rounded-xl bg-white px-3 text-lg ring-1 ring-cream-200 outline-none focus:ring-2 focus:ring-green'
 
-/** إعدادات المالك: حسابات الكليك، وحد خصم الموظف، ومهام الفتح والتسكير، والطاولات، وهدف التوفير. (إعدادات الولاء بشاشة الزباين.) */
+/** إعدادات المالك: حسابات الكليك، والمي التلقائية، ومهام الفتح والتسكير، والطاولات، وهدف التوفير. (إعدادات الولاء بشاشة الزباين.) */
 export default function SettingsScreen() {
   const cliq = useLiveQuery(getCliqSettings, [])
-  const discounts = useLiveQuery(getDiscountSettings, [])
+  const water = useLiveQuery(getWaterSettings, [])
   const goal = useLiveQuery(getGoal, [])
   const floor = useLiveQuery(getFloorSettings, [])
   const checklists = useLiveQuery(getChecklists, [])
@@ -28,7 +28,7 @@ export default function SettingsScreen() {
         <CloudSection />
         <MenuQrSection />
         {cliq && <CliqForm initial={cliq} />}
-        {discounts && <DiscountForm initial={discounts} />}
+        {water && <WaterForm initial={water} />}
         {checklists && <ChecklistsForm initial={checklists} />}
         {floor && <FloorForm initial={floor} />}
         {goal && <GoalForm initial={goal} />}
@@ -106,34 +106,43 @@ function CliqForm({ initial }: { initial: CliqSettings }) {
   )
 }
 
-function DiscountForm({ initial }: { initial: DiscountSettings }) {
-  const [pct, setPct] = useState(String(initial.staffMaxPct))
+function WaterForm({ initial }: { initial: WaterSettings }) {
+  const [enabled, setEnabled] = useState(initial.enabled)
+  const [free, setFree] = useState(initial.free)
   const [msg, setMsg] = useState('')
 
   async function save() {
-    try {
-      await saveDiscountSettings({ staffMaxPct: Number(pct) })
-      setMsg('انحفظ ✓')
-    } catch (e) {
-      setMsg(e instanceof Error ? e.message : 'ما زبط')
-    }
+    await saveWaterSettings({ enabled, free })
+    setMsg('انحفظ ✓')
     setTimeout(() => setMsg(''), 3000)
   }
 
+  const chip = (on: boolean) => `h-12 rounded-xl px-4 font-medium ${on ? 'bg-green text-cream' : 'bg-cream-200 text-green active:bg-green-100'}`
+
   return (
     <section className="rounded-3xl bg-white/70 p-5 ring-1 ring-cream-200">
-      <h2 className="mb-1 font-display text-xl text-green">الخصومات اليدوية</h2>
-      <p className="mb-4 text-sm text-ink/60">الموظف بيعطي خصم لحد هالنسبة لحاله. أكثر من هيك بده رمز المالك.</p>
-      <div className="flex items-center gap-2">
-        أقصى خصم للموظف
-        <input
-          value={pct}
-          onChange={(e) => setPct(e.target.value.replace(/\D/g, '').slice(0, 3))}
-          inputMode="numeric"
-          className={`${inputClass} num w-24 text-center`}
-        />
-        %
+      <h2 className="mb-1 font-display text-xl text-green">المي التلقائية</h2>
+      <p className="mb-4 text-sm text-ink/60">
+        لما ينحط عدد الزباين على طاولة، بتنضاف مي بعددهم، وبتتعدّل إذا تغيّر العدد. الموظف بيقدر يزيد أو يشيل عادي. (صنف «مي» من المنيو.)
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <button type="button" onClick={() => setEnabled(true)} className={chip(enabled)}>
+          شغّالة
+        </button>
+        <button type="button" onClick={() => setEnabled(false)} className={chip(!enabled)}>
+          مطفية
+        </button>
       </div>
+      {enabled && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button type="button" onClick={() => setFree(false)} className={chip(!free)}>
+            بسعرها من المنيو
+          </button>
+          <button type="button" onClick={() => setFree(true)} className={chip(free)}>
+            مجانية
+          </button>
+        </div>
+      )}
       <button type="button" onClick={save} className="mt-4 h-14 w-full rounded-2xl bg-gold text-lg font-bold text-green active:bg-gold-600">
         حفظ
       </button>

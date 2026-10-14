@@ -1,23 +1,17 @@
 import { db } from '../db/db'
-import type { DiscountSettings, ManualDiscount } from '../db/types'
+import type { ManualDiscount } from '../db/types'
 import { logAudit } from './audit'
 import { formatJod } from './money'
 import { linesTotal, orderDue, paymentsTotal } from './orders'
 import { getOpenShift } from './shift'
 
-const KEY = 'discounts'
-export const DEFAULT_DISCOUNTS: DiscountSettings = { staffMaxPct: 10 }
+// الخصم بيمشي بدون رمز المالك. كل خصم بينسجّل: مين، أي طلب، قديش، والوقت (سجل التعديلات وتقرير الموظفين).
+
 export const DISCOUNT_REASONS = ['صاحب', 'زبون دائم', 'تعويض']
-
-export async function getDiscountSettings(): Promise<DiscountSettings> {
-  const row = await db.settings.get(KEY)
-  return { ...DEFAULT_DISCOUNTS, ...((row?.value as Partial<DiscountSettings>) ?? {}) }
-}
-
-export async function saveDiscountSettings(s: DiscountSettings) {
-  if (!(s.staffMaxPct >= 0 && s.staffMaxPct <= 100)) throw new Error('النسبة لازم تكون بين 0 و 100')
-  await db.settings.put({ key: KEY, value: s })
-}
+/** السبب لما الموظف ما بيختار سبب */
+export const NO_REASON = 'خصم'
+/** خصم الموظف لما يكتب المبلغ اللي بيدفعه الزبون */
+export const FINAL_AMOUNT_REASON = 'بالمبلغ النهائي'
 
 /** قيمة خصم بنسبة، مدوّرة لأقرب 10 فلس. */
 export const pctAmount = (subtotal: number, pct: number) => Math.round((subtotal * pct) / 100 / 10) * 10
@@ -32,8 +26,7 @@ export async function applyManualDiscount(
   byUserId: number,
   approvedBy?: number,
 ) {
-  const reason = d.reason.trim()
-  if (!reason) throw new Error('اختار سبب الخصم')
+  const reason = d.reason.trim() || NO_REASON
   if (!(d.amount > 0)) throw new Error('الخصم لازم يكون أكبر من صفر')
   await db.transaction('rw', ['orders', 'orderLines', 'payments', 'customers', 'shifts', 'auditLog'], async () => {
     const order = (await db.orders.get(orderId))!

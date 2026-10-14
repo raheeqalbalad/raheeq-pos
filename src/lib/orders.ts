@@ -33,7 +33,7 @@ function startOfToday(): number {
 }
 
 /** بيرجع الطلب المفتوح على الطاولة، أو بيفتح واحد جديد. */
-async function openOrder(target: OrderTarget, staffId: number): Promise<number> {
+export async function openOrder(target: OrderTarget, staffId: number): Promise<number> {
   return db.transaction('rw', 'orders', async () => {
     if ('tableId' in target) {
       const existing = await db.orders

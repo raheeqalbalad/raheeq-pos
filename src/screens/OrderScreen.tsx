@@ -27,6 +27,7 @@ import PaymentsList from '../components/PaymentsList'
 import { refreshLoyaltyDiscount } from '../lib/customers'
 import { refreshManualDiscount } from '../lib/discounts'
 import { useOwnerGate } from '../lib/useOwnerGate'
+import { adjustAutoWater } from '../lib/water'
 import CoalSheet, { useNow } from '../components/CoalSheet'
 import { coalDue, getFloorSettings } from '../lib/floor'
 
@@ -353,8 +354,17 @@ export default function OrderScreen({ orderId: initialId, target, title, onDone,
           onClose={() => setAskGuests(false)}
           onSave={async (g) => {
             setAskGuests(false)
+            const before = guestsTotal(order?.guests ?? pendingGuests.current)
             pendingGuests.current = g
-            if (idRef.current) await setOrderGuests(idRef.current, g)
+            // المي التلقائية بعدد الزباين (بتفتح الطلب إذا لسا مش مفتوح)
+            if (!idRef.current && creating.current) await creating.current
+            const id = await adjustAutoWater(idRef.current, target, guestsTotal(g) - before, user!.id!)
+            if (id !== idRef.current) setOrderId(id)
+            if (id) {
+              await setOrderGuests(id, g)
+              await refreshLoyaltyDiscount(id)
+              await refreshManualDiscount(id)
+            }
           }}
         />
       )}

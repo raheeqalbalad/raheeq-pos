@@ -139,14 +139,9 @@ export interface ManualDiscount {
   pct?: number
   reason: string
   byUserId: number
-  /** إذا أكثر من المسموح للموظف: رمز المالك */
+  /** الخصومات القديمة: مين وافق (هلق الخصم بيمشي بدون رمز) */
   approvedBy?: number
   at: number
-}
-
-export interface DiscountSettings {
-  /** أقصى نسبة بيعطيها الموظف لحاله (أكثر بده رمز المالك) */
-  staffMaxPct: number
 }
 
 export interface Guests {
@@ -176,6 +171,8 @@ export interface OrderLine {
   isOffer?: boolean
   /** نكهة كل أرجيلة بوحدة وحدة من السطر (للأراجيل ومؤقت الفحم) */
   hookahs?: string[]
+  /** مي انضافت لحالها حسب عدد الزباين (بتتعدّل لما يتغيّر العدد) */
+  autoWater?: boolean
   qty: number
   options: LineOption[]
   note?: string
