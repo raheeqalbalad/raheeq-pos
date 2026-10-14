@@ -1,12 +1,18 @@
 import { db } from '../db/db'
-import type { CafeTable, Item, LineOption, OrderLine, Payment, PaymentMethod } from '../db/types'
+import type { CafeTable, Item, LineOption, Order, OrderLine, Payment, PaymentMethod } from '../db/types'
 import { getOpenShift } from './shift'
-import { logPaymentCorrection } from './audit'
+import { logAudit, logPaymentCorrection } from './audit'
+import { formatJod } from './money'
 
 export type OrderTarget = { tableId: number; label: string } | { takeaway: true }
 
 export function linesTotal(lines: OrderLine[]): number {
   return lines.reduce((sum, l) => sum + l.priceSnapshot * l.qty, 0)
+}
+
+/** المطلوب من الزبون: مجموع الأصناف ناقص خصم الولاء (ما بينزل تحت الصفر). */
+export function orderDue(lines: OrderLine[], order: Pick<Order, 'loyaltyDiscount'> | undefined): number {
+  return Math.max(0, linesTotal(lines) - (order?.loyaltyDiscount ?? 0))
 }
 
 export function paymentsTotal(payments: Payment[]): number {
@@ -96,25 +102,46 @@ export async function addItem(
 export type LineChangeResult = 'ok' | 'below-paid' | 'order-removed'
 
 /**
- * بيغيّر كمية سطر (0 = حذف). ممنوع ينزل مجموع الطلب تحت اللي انْدفع.
+ * بيغيّر كمية سطر (0 = حذف). ممنوع ينزل المطلوب تحت اللي انْدفع.
  * إذا الطلب صار فاضي وما عليه دفعات، بينحذف كأنه ما انفتح.
+ * أي تنقيص بينسجّل بسجل التعديلات باسم اللي عمله.
  */
-export async function setLineQty(line: OrderLine, qty: number): Promise<LineChangeResult> {
-  return db.transaction('rw', ['orders', 'orderLines', 'payments'], async () => {
+export async function setLineQty(line: OrderLine, qty: number, byUserId: number): Promise<LineChangeResult> {
+  return db.transaction('rw', ['orders', 'orderLines', 'payments', 'shifts', 'auditLog'], async () => {
+    const order = await db.orders.get(line.orderId)
     const lines = await db.orderLines.where('orderId').equals(line.orderId).toArray()
     const paid = paymentsTotal(await db.payments.where('orderId').equals(line.orderId).toArray())
-    const newTotal = linesTotal(lines) + line.priceSnapshot * (qty - line.qty)
-    if (newTotal < paid) return 'below-paid'
+    const changed = lines.map((l) => (l.id === line.id ? { ...l, qty } : l)).filter((l) => l.qty > 0)
+    if (orderDue(changed, order) < paid) return 'below-paid'
+
+    const removed = line.qty - qty
+    const logRemoval = async (extra = '') => {
+      if (removed <= 0 || !order) return
+      const shift = await getOpenShift()
+      await logAudit({
+        kind: 'line',
+        byUserId,
+        orderId: line.orderId,
+        shiftId: shift?.id,
+        amount: removed * line.priceSnapshot,
+        summary: `شال ${removed}× ${line.nameSnapshot} من ${order.label} (−${formatJod(removed * line.priceSnapshot)})${extra}`,
+        before: { qty: line.qty },
+        after: { qty },
+      })
+    }
 
     if (qty > 0) {
       await db.orderLines.update(line.id!, { qty })
+      await logRemoval()
       return 'ok'
     }
     await db.orderLines.delete(line.id!)
     if (lines.length === 1 && paid === 0) {
       await db.orders.delete(line.orderId)
+      await logRemoval('، والطلب فضي وانشال')
       return 'order-removed'
     }
+    await logRemoval()
     return 'ok'
   })
 }
@@ -134,7 +161,8 @@ export async function addPayment(
   return db.transaction('rw', ['orders', 'orderLines', 'payments', 'shifts'], async () => {
     const shift = await getOpenShift()
     if (!shift) throw new Error('ما في شيفت مفتوح')
-    const total = linesTotal(await db.orderLines.where('orderId').equals(orderId).toArray())
+    const order = await db.orders.get(orderId)
+    const total = orderDue(await db.orderLines.where('orderId').equals(orderId).toArray(), order)
     const paid = paymentsTotal(await db.payments.where('orderId').equals(orderId).toArray())
     const remaining = total - paid
     if (amount <= 0 || amount > remaining) throw new Error('مبلغ غير صحيح')
@@ -153,13 +181,27 @@ export async function orderHasPayments(orderId: number): Promise<boolean> {
 }
 
 /**
- * إلغاء طلب مفتوح. بيضل محفوظ بحالة void عشان يبين بالتقارير.
- * إذا عليه دفعات، لازم موافقة المالك (byOwner)، ودفعاته ما بتنحسب بالمبيعات (رجعت للزبون).
+ * إلغاء طلب مفتوح. بيضل محفوظ بحالة void عشان يبين بالتقارير، وبينسجّل بسجل التعديلات.
+ * إذا عليه دفعات، لازم موافقة المالك (approvedBy)، ودفعاته ما بتنحسب بالمبيعات (رجعت للزبون).
  */
-export async function voidOrder(orderId: number, byUserId: number, byOwner: boolean): Promise<boolean> {
-  return db.transaction('rw', ['orders', 'payments'], async () => {
-    if (!byOwner && (await orderHasPayments(orderId))) return false
-    await db.orders.update(orderId, { status: 'void', closedAt: Date.now(), voidedBy: byUserId })
+export async function voidOrder(orderId: number, byUserId: number, approvedBy?: number): Promise<boolean> {
+  return db.transaction('rw', ['orders', 'orderLines', 'payments', 'shifts', 'auditLog'], async () => {
+    if (!approvedBy && (await orderHasPayments(orderId))) return false
+    const order = (await db.orders.get(orderId))!
+    const total = linesTotal(await db.orderLines.where('orderId').equals(orderId).toArray())
+    await db.orders.update(orderId, { status: 'void', closedAt: Date.now(), voidedAt: Date.now(), voidedBy: byUserId })
+    const shift = await getOpenShift()
+    await logAudit({
+      kind: 'void',
+      byUserId,
+      approvedBy,
+      orderId,
+      shiftId: shift?.id,
+      amount: total,
+      summary: `ألغى ${order.label} (${formatJod(total)})${approvedBy ? ' بموافقة المالك' : ''}`,
+      before: { status: order.status },
+      after: { status: 'void' },
+    })
     return true
   })
 }

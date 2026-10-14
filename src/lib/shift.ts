@@ -51,6 +51,8 @@ export interface ShiftSummary {
   expectedCash: number
   paidOrders: number
   voidOrders: number
+  /** خصم الولاء على طلبات الشيفت المدفوعة */
+  loyalty: number
   /** مين باع بالشيفت */
   staffIds: number[]
 }
@@ -87,6 +89,7 @@ export async function shiftSummary(shift: Shift): Promise<ShiftSummary> {
     net: cash + cliq - expenses - outside,
     expectedCash: shift.openingCash + cash - expenses,
     paidOrders: closedInShift.filter((o) => o.status === 'paid').length,
+    loyalty: closedInShift.filter((o) => o.status === 'paid').reduce((s, o) => s + (o.loyaltyDiscount ?? 0), 0),
     voidOrders: closedInShift.filter((o) => o.status === 'void').length,
     staffIds: [...new Set(counted.map((p) => p.staffId))],
   }

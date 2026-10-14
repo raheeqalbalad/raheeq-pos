@@ -3,6 +3,7 @@ import type {
   AuditEntry,
   CafeTable,
   Category,
+  Customer,
   Expense,
   Item,
   Order,
@@ -10,6 +11,7 @@ import type {
   OrderLine,
   Payment,
   PaymentCorrection,
+  Setting,
   Shift,
   StockCount,
   StockItem,
@@ -33,6 +35,8 @@ export const db = new Dexie('raheeq-pos') as Dexie & {
   stockCounts: EntityTable<StockCount, 'id'>
   optionLists: EntityTable<OptionList, 'id'>
   auditLog: EntityTable<AuditEntry, 'id'>
+  customers: EntityTable<Customer, 'id'>
+  settings: EntityTable<Setting, 'key'>
 }
 
 // ملاحظة: `db.tables` محجوز بـ Dexie، عشان هيك الطاولات اسمها cafeTables.
@@ -85,4 +89,10 @@ db.version(5)
 
 db.version(6).stores({
   auditLog: '++id, at, shiftId, orderId',
+})
+
+db.version(7).stores({
+  orders: '++id, status, tableId, openedAt, closedAt, customerId',
+  customers: '++id, &phone, name',
+  settings: 'key',
 })

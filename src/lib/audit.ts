@@ -1,7 +1,7 @@
 import { db } from '../db/db'
 import type { AuditEntry, Expense, Order, OrderLine, Payment } from '../db/types'
 import { formatJod } from './money'
-import { linesTotal, paymentsTotal } from './orders'
+import { linesTotal, orderDue, paymentsTotal } from './orders'
 
 // تعديلات المالك على الأيام الماضية. كل تعديل بينحفظ معه: مين، ومتى، وشو كان قبل وشو صار.
 // التقارير بتتحدّث لحالها لأنها بتقرا من نفس البيانات.
@@ -35,7 +35,8 @@ export async function removeLineUnits(line: OrderLine, units: number, byUserId: 
     const amount = remove * line.priceSnapshot
     const payments = await db.payments.where('orderId').equals(order.id!).sortBy('createdAt')
     const paid = paymentsTotal(payments)
-    const newTotal = linesTotal(lines) - amount
+    const remaining = lines.map((l) => (l.id === line.id ? { ...l, qty: l.qty - remove } : l)).filter((l) => l.qty > 0)
+    const newTotal = orderDue(remaining, order)
 
     const before = { line: { ...line }, payments: payments.map((p) => ({ ...p })) }
     if (remove === line.qty) await db.orderLines.delete(line.id!)
@@ -59,6 +60,7 @@ export async function removeLineUnits(line: OrderLine, units: number, byUserId: 
       kind: 'line',
       byUserId,
       orderId: order.id,
+      amount,
       shiftId: await shiftIdForOrder({ ...order }),
       summary: `شال ${remove}× ${line.nameSnapshot} من ${order.label} (−${formatJod(amount)})${
         reduced ? `، والدفعات نقصت ${formatJod(reduced)}` : ''
@@ -89,6 +91,7 @@ export async function voidOrderAudited(order: Order, byUserId: number) {
       kind: 'void',
       byUserId,
       orderId: order.id,
+      amount: total,
       shiftId: await shiftIdForOrder(fresh),
       summary: `ألغى ${fresh.label} (${formatJod(total)})`,
       before: { status: fresh.status },

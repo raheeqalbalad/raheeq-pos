@@ -50,6 +50,8 @@ export interface Totals {
   net: number
   orders: number
   voids: number
+  /** خصم الولاء على الطلبات المدفوعة */
+  loyalty: number
 }
 
 export interface DayRow extends Totals {
@@ -84,8 +86,18 @@ export interface ExpenseReasonRow {
   amount: number
 }
 
+/** إلغاءات وشيل أصناف لكل موظف (من سجل التعديلات) */
+export interface CancellationRow {
+  userId: number
+  voids: number
+  voidAmount: number
+  removals: number
+  removalAmount: number
+}
+
 export interface Report {
   totals: Totals
+  cancellations: CancellationRow[]
   days: DayRow[]
   months: MonthRow[]
   items: ItemRow[]
@@ -94,7 +106,7 @@ export interface Report {
   expenses: Expense[]
 }
 
-const emptyTotals = (): Totals => ({ cash: 0, cliq: 0, sales: 0, expenses: 0, outside: 0, net: 0, orders: 0, voids: 0 })
+const emptyTotals = (): Totals => ({ cash: 0, cliq: 0, sales: 0, expenses: 0, outside: 0, net: 0, orders: 0, voids: 0, loyalty: 0 })
 
 function addTotals(a: Totals, b: Totals) {
   a.cash += b.cash
@@ -105,6 +117,7 @@ function addTotals(a: Totals, b: Totals) {
   a.net += b.net
   a.orders += b.orders
   a.voids += b.voids
+  a.loyalty += b.loyalty
 }
 
 /** كل الشيفتات، الأحدث أول. */
@@ -124,10 +137,11 @@ export async function buildReport(shifts: Shift[]): Promise<Report> {
   const from = Math.min(...windows.map((w) => w[0]))
   const to = Math.max(...windows.map((w) => w[1]))
 
-  const [payments, expenses, closedOrders] = await Promise.all([
+  const [payments, expenses, closedOrders, audit] = await Promise.all([
     db.payments.where('shiftId').anyOf(ids).toArray(),
     db.expenses.where('shiftId').anyOf(ids).toArray(),
     shifts.length ? db.orders.where('closedAt').between(from, to, true, true).toArray() : Promise.resolve([] as Order[]),
+    db.auditLog.where('shiftId').anyOf(ids).toArray(),
   ])
 
   // طلبات الفترة: اللي تسكّرت جوا شيفت من الشيفتات المختارة
@@ -157,8 +171,10 @@ export async function buildReport(shifts: Shift[]): Promise<Report> {
   }
   for (const o of orders) {
     const row = byShift.get(shiftOf(o.closedAt!)!.id!)!
-    if (o.status === 'paid') row.orders++
-    else if (o.status === 'void') row.voids++
+    if (o.status === 'paid') {
+      row.orders++
+      row.loyalty += o.loyaltyDiscount ?? 0
+    } else if (o.status === 'void') row.voids++
   }
   const days = [...byShift.values()]
   for (const d of days) {
@@ -219,8 +235,27 @@ export async function buildReport(shifts: Shift[]): Promise<Report> {
   }
   const expenseReasons = [...reasonMap.values()].sort((a, b) => b.amount - a.amount)
 
+  // الإلغاءات لكل موظف
+  const cancelMap = new Map<number, CancellationRow>()
+  for (const a of audit) {
+    if (a.kind !== 'void' && a.kind !== 'line') continue
+    const row = cancelMap.get(a.byUserId) ?? { userId: a.byUserId, voids: 0, voidAmount: 0, removals: 0, removalAmount: 0 }
+    if (a.kind === 'void') {
+      row.voids++
+      row.voidAmount += a.amount ?? 0
+    } else {
+      row.removals++
+      row.removalAmount += a.amount ?? 0
+    }
+    cancelMap.set(a.byUserId, row)
+  }
+  const cancellations = [...cancelMap.values()].sort(
+    (a, b) => b.voidAmount + b.removalAmount - (a.voidAmount + a.removalAmount),
+  )
+
   return {
     totals,
+    cancellations,
     days,
     months,
     items,
@@ -241,7 +276,7 @@ export const hourLabel = (h: number) => `${String(h).padStart(2, '0')}:00`
  */
 export async function wipeSalesData() {
   const tables = db.tables.filter((t) =>
-    ['orders', 'orderLines', 'payments', 'paymentCorrections', 'shifts', 'expenses', 'stockMoves', 'stockCounts', 'auditLog'].includes(
+    ['orders', 'orderLines', 'payments', 'paymentCorrections', 'shifts', 'expenses', 'stockMoves', 'stockCounts', 'auditLog', 'customers'].includes(
       t.name,
     ),
   )

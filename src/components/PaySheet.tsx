@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import type { PaymentMethod } from '../db/types'
+import type { Order, PaymentMethod } from '../db/types'
+import CustomerBox from './CustomerBox'
 import { addPayment } from '../lib/orders'
 import { formatJod, toFils } from '../lib/money'
 import { useSession } from '../lib/session'
@@ -13,12 +14,18 @@ const half = (fils: number) => Math.ceil(fils / 2 / 50) * 50
 
 export default function PaySheet({
   orderId,
+  order,
+  subtotal,
   total,
   paid,
   onPaidFull,
   onClose,
 }: {
   orderId: number
+  order: Order | undefined
+  /** مجموع الأصناف قبل خصم الولاء */
+  subtotal: number
+  /** المطلوب بعد الخصم */
   total: number
   paid: number
   onPaidFull: () => void
@@ -57,6 +64,7 @@ export default function PaySheet({
   return (
     <Sheet title="الدفع" onClose={onClose}>
       <div className="flex flex-col gap-5">
+        {order && <CustomerBox order={order} subtotal={subtotal} paid={paid} />}
         <dl className="grid grid-cols-3 gap-2 text-center">
           <div className="rounded-xl bg-white/70 p-3">
             <dt className="text-xs text-ink/60">المجموع</dt>

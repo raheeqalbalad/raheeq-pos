@@ -22,6 +22,7 @@ import PaySheet from '../components/PaySheet'
 import LineSheet from '../components/LineSheet'
 import Sheet from '../components/Sheet'
 import PaymentsList from '../components/PaymentsList'
+import { refreshLoyaltyDiscount } from '../lib/customers'
 import { useOwnerGate } from '../lib/useOwnerGate'
 
 export type OrderScreenProps = {
@@ -64,7 +65,10 @@ export default function OrderScreen({ orderId: initialId, target, title, onDone,
     [orderId],
   )
 
-  const total = linesTotal(lines ?? [])
+  const subtotal = linesTotal(lines ?? [])
+  const discount = Math.min(order?.loyaltyDiscount ?? 0, subtotal)
+  // المطلوب = الأصناف ناقص خصم الولاء
+  const total = subtotal - discount
   const paid = paymentsTotal(payments ?? [])
   const count = (lines ?? []).reduce((s, l) => s + l.qty, 0)
   const counts = useMemo(() => {
@@ -84,6 +88,7 @@ export default function OrderScreen({ orderId: initialId, target, title, onDone,
     if (!idRef.current && creating.current) await creating.current
     if (idRef.current) {
       await addItem(idRef.current, target, item, options, user!.id!)
+      await refreshLoyaltyDiscount(idRef.current)
       return
     }
     creating.current = addItem(undefined, target, item, options, user!.id!)
@@ -100,12 +105,13 @@ export default function OrderScreen({ orderId: initialId, target, title, onDone,
   }
 
   function handleLineResult(r: LineChangeResult) {
+    if (idRef.current) refreshLoyaltyDiscount(idRef.current)
     if (r === 'below-paid') flash(BELOW_PAID)
     if (r === 'order-removed') setOrderId(undefined)
   }
 
   async function changeQty(line: OrderLine, delta: number) {
-    handleLineResult(await setLineQty(line, line.qty + delta))
+    handleLineResult(await setLineQty(line, line.qty + delta, user!.id!))
   }
 
   async function doVoid() {
@@ -113,14 +119,14 @@ export default function OrderScreen({ orderId: initialId, target, title, onDone,
     if (!orderId) return
     const msg = `انلغى طلب ${displayTitle}`
     if (paid === 0) {
-      if (await voidOrder(orderId, user!.id!, false)) onDone(msg)
+      if (await voidOrder(orderId, user!.id!)) onDone(msg)
       return
     }
     // عليه دفعات: بدها رمز المالك
     requireOwner(
       'إلغاء طلب مدفوع منه',
       async (ownerId) => {
-        if (await voidOrder(orderId, ownerId, true)) onDone(msg)
+        if (await voidOrder(orderId, user!.id!, ownerId)) onDone(msg)
       },
       <>
         على الطلب دفعات بقيمة <span className="num">{formatJod(paid)}</span> رح ترجع للزبون وما تنحسب.
@@ -185,6 +191,12 @@ export default function OrderScreen({ orderId: initialId, target, title, onDone,
       </div>
 
       <div className="shrink-0 border-t border-cream-200 bg-cream p-3">
+        {discount > 0 && (
+          <div className="mb-1 flex justify-between text-sm font-bold text-green">
+            <span>خصم ولاء</span>
+            <span className="num">−{formatJod(discount)}</span>
+          </div>
+        )}
         {paid > 0 && (
           <div className="mb-1 flex justify-between text-sm text-ink/70">
             <span>مدفوع</span>
@@ -275,6 +287,8 @@ export default function OrderScreen({ orderId: initialId, target, title, onDone,
       {paying && orderId && (
         <PaySheet
           orderId={orderId}
+          order={order}
+          subtotal={subtotal}
           total={total}
           paid={paid}
           onClose={() => setPaying(false)}

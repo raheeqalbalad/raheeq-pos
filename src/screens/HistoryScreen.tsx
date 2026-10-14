@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db/db'
 import type { Order, Shift } from '../db/types'
-import { linesTotal, optionsLabel } from '../lib/orders'
+import { orderDue, optionsLabel } from '../lib/orders'
 import { formatJod } from '../lib/money'
 import PaymentsList, { METHOD_LABEL, timeLabel } from '../components/PaymentsList'
 import Sheet from '../components/Sheet'
@@ -19,7 +19,7 @@ export default function HistoryScreen({ shift }: { shift: Shift }) {
     ])
     return orders.map((o) => ({
       order: o,
-      total: linesTotal(lines.filter((l) => l.orderId === o.id)),
+      total: orderDue(lines.filter((l) => l.orderId === o.id), o),
       methods: [...new Set(payments.filter((p) => p.orderId === o.id).map((p) => METHOD_LABEL[p.method]))],
     }))
   }, [shift.openedAt])
@@ -74,6 +74,12 @@ function OrderDetail({ order, onClose }: { order: Order; onClose: () => void }) 
           </li>
         ))}
       </ul>
+      {!!order.loyaltyDiscount && (
+        <p className="-mt-2 mb-4 flex justify-between border-t border-cream-200 pt-2 font-bold text-green">
+          <span>خصم ولاء</span>
+          <span className="num">−{formatJod(order.loyaltyDiscount)}</span>
+        </p>
+      )}
       {order.status === 'void' ? (
         <p className="rounded-xl bg-red-800/10 p-3 text-center text-red-900">الطلب ملغي، ودفعاته ما بتنحسب</p>
       ) : (

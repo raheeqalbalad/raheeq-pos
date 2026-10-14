@@ -5,7 +5,7 @@ import type { Expense, Order, OrderLine, Shift } from '../db/types'
 import { allShifts, buildReport, dayLabel } from '../lib/reports'
 import { deleteExpenseAudited, removeLineUnits, updateExpenseAudited, voidOrderAudited } from '../lib/audit'
 import { expenseSource } from '../lib/shift'
-import { linesTotal, optionsLabel } from '../lib/orders'
+import { orderDue, optionsLabel } from '../lib/orders'
 import { formatJod, toFils } from '../lib/money'
 import { timeLabelOf } from '../lib/time'
 import { useSession } from '../lib/session'
@@ -123,7 +123,7 @@ function DayLog({ shifts }: { shifts: Shift[] }) {
       totals: report.totals,
       rows: orders.map((o) => ({
         order: o,
-        total: linesTotal(lines.filter((l) => l.orderId === o.id)),
+        total: orderDue(lines.filter((l) => l.orderId === o.id), o),
         methods: [...new Set(payments.filter((p) => p.orderId === o.id).map((p) => METHOD_LABEL[p.method]))],
         edited: edited.has(o.id),
       })),
@@ -338,6 +338,12 @@ function OrderEditor({ order: initial, onClose }: { order: Order; onClose: () =>
           </li>
         ))}
       </ul>
+      {!!order.loyaltyDiscount && (
+        <p className="-mt-2 mb-4 flex justify-between border-t border-cream-200 pt-2 font-bold text-green">
+          <span>خصم ولاء</span>
+          <span className="num">−{formatJod(order.loyaltyDiscount)}</span>
+        </p>
+      )}
 
       {isVoid ? (
         <p className="rounded-xl bg-red-800/10 p-3 text-center text-red-900">الطلب ملغي، ودفعاته ما بتنحسب بالدخل</p>

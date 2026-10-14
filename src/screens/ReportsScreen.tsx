@@ -1,5 +1,6 @@
 import { useRef, useState, type ReactNode } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
+import { db } from '../db/db'
 import {
   allShifts,
   buildReport,
@@ -141,7 +142,18 @@ function ReportBody({ report, mode }: { report: Report; mode: Mode }) {
   return (
     <>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Tile label="الدخل" value={formatJod(t.sales)} accent />
+        <Tile
+          label="الدخل"
+          value={formatJod(t.sales)}
+          accent
+          sub={
+            t.loyalty > 0 && (
+              <span className="text-cream/70">
+                بعد خصم ولاء <span className="num">{formatJod(t.loyalty)}</span>
+              </span>
+            )
+          }
+        />
         <Tile
           label="المصاريف"
           value={formatJod(t.expenses + t.outside)}
@@ -214,6 +226,10 @@ function ReportBody({ report, mode }: { report: Report; mode: Mode }) {
           />
         </Card>
       )}
+
+      <Card title="الإلغاءات وشيل الأصناف حسب الموظف">
+        <Cancellations rows={report.cancellations} />
+      </Card>
 
       <Card title="المصاريف">
         {report.expenseReasons.length === 0 ? (
@@ -535,5 +551,23 @@ function BackupTools() {
       )}
       {sheet}
     </div>
+  )
+}
+
+function Cancellations({ rows }: { rows: Report['cancellations'] }) {
+  const names = useLiveQuery(async () => new Map((await db.users.toArray()).map((u) => [u.id!, u.name])), [])
+  if (!rows.length) return <p className="text-ink/50">ما في إلغاءات ولا شيل أصناف بهالفترة</p>
+  return (
+    <Table
+      head={['الموظف', 'طلبات ملغية', 'قيمتها', 'أصناف انشالت', 'قيمتها', 'المجموع']}
+      rows={rows.map((r) => [
+        names?.get(r.userId) ?? '—',
+        String(r.voids),
+        formatJod(r.voidAmount),
+        String(r.removals),
+        formatJod(r.removalAmount),
+        formatJod(r.voidAmount + r.removalAmount),
+      ])}
+    />
   )
 }

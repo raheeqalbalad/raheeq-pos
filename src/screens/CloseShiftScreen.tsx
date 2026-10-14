@@ -40,6 +40,7 @@ function SummaryCard({ shift, summary }: { shift: Shift; summary: ShiftSummary }
           <Row label="كاش" value={summary.cash} />
           <Row label="كليك" value={summary.cliq} />
           <Row label="مجموع المبيعات" value={summary.sales} strong />
+          {summary.loyalty > 0 && <Row label="خصم ولاء (منقوص من المبيعات)" value={summary.loyalty} sign="−" />}
           <Row label="مصاريف الدرج" value={summary.expenses} sign="−" />
           {summary.outside > 0 && <Row label="مصاريف من برا الدرج" value={summary.outside} sign="−" />}
           <Row label="الصافي" value={summary.net} strong />

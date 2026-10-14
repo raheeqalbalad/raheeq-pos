@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db/db'
 import type { CafeTable, Order } from '../db/types'
-import { linesTotal } from '../lib/orders'
+import { orderDue } from '../lib/orders'
 import { formatJod } from '../lib/money'
 
 export type OpenRequest =
@@ -19,7 +19,7 @@ export default function TablesScreen({ onOpen, message }: { onOpen: (r: OpenRequ
   const open = useLiveQuery(async () => {
     const orders = await db.orders.where('status').equals('open').toArray()
     const lines = await db.orderLines.where('orderId').anyOf(orders.map((o) => o.id!)).toArray()
-    return orders.map((o) => ({ order: o, total: linesTotal(lines.filter((l) => l.orderId === o.id)) }))
+    return orders.map((o) => ({ order: o, total: orderDue(lines.filter((l) => l.orderId === o.id), o) }))
   }, [])
 
   // تحديث الوقت كل دقيقة

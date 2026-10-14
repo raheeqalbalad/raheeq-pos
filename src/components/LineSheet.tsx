@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { OrderLine } from '../db/types'
 import { optionsLabel, setLineNote, setLineQty, type LineChangeResult } from '../lib/orders'
 import Sheet from './Sheet'
+import { useSession } from '../lib/session'
 
 const QUICK_NOTES = ['بدون سكر', 'سكر خفيف', 'سكر زيادة', 'بدون ثلج']
 
@@ -14,6 +15,7 @@ export default function LineSheet({
   onResult: (r: LineChangeResult) => void
   onClose: () => void
 }) {
+  const { user } = useSession()
   const [note, setNote] = useState(line.note ?? '')
 
   async function save() {
@@ -22,7 +24,7 @@ export default function LineSheet({
   }
 
   async function remove() {
-    onResult(await setLineQty(line, 0))
+    onResult(await setLineQty(line, 0, user!.id!))
     onClose()
   }
 

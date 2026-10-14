@@ -85,6 +85,10 @@ export interface Order {
   voidedBy?: number
   /** وقت الإلغاء. إلغاء طلب مسكّر من سجل الأيام ما بيغيّر closedAt (عشان يضل بيومه) */
   voidedAt?: number
+  /** الزبون المسجّل (رقم التلفون) */
+  customerId?: number
+  /** خصم الولاء بالـ fils (سطر واضح بالفاتورة) */
+  loyaltyDiscount?: number
 }
 
 export interface LineOption {
@@ -209,6 +213,39 @@ export interface AuditEntry {
   /** يوم الشغل اللي بيخصّه التعديل (عشان يبيّن بسجل ذاك اليوم) */
   shiftId?: number
   orderId?: number
+  /** قيمة اللي انشال أو انلغى بالـ fils (لتقرير الإلغاءات لكل موظف) */
+  amount?: number
+  /** مين وافق (رمز المالك)، إذا التعديل بده موافقة */
+  approvedBy?: number
   before?: unknown
   after?: unknown
+}
+
+// ===== الزباين وكرت الولاء =====
+
+export interface Customer {
+  id?: number
+  /** رقم أردني موحّد: 07XXXXXXXX */
+  phone: string
+  name?: string
+  /** موافق ينبعتله عروض (التصدير للموافقين بس) */
+  marketingOptIn: boolean
+  createdAt: number
+}
+
+export interface LoyaltySettings {
+  enabled: boolean
+  /** كم زيارة قبل الخصم (5 → السادسة عليها خصم) */
+  visitsNeeded: number
+  /** نسبة الخصم على الفاتورة كاملة */
+  discountPct: number
+  /** أقصى خصم بالـ fils */
+  maxDiscount: number
+  /** أقل طلب بينحسب زيارة، بالـ fils */
+  minOrder: number
+}
+
+export interface Setting {
+  key: string
+  value: unknown
 }
