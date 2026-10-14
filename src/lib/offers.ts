@@ -1,10 +1,9 @@
 import { db, HOOKAH_LIST_ID } from '../db/db'
-import type { Item, ItemSchedule, OptionChoice, OptionGroup, OptionList } from '../db/types'
+import type { Item, OptionChoice, OptionGroup, OptionList } from '../db/types'
+export { WEEK_DAYS, scheduleParts } from './schedule'
 
 // العروض: قسم «عروض» بالمنيو. العرض صنف عادي بسعر ثابت، وخياراته (نكهة الأرجيلة، نوع المشروب)
 // بتنفتح لما ينضاف. إله أوقات وأيام، وبرّاها ما بينضاف.
-
-export const WEEK_DAYS = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت']
 
 const minutes = (hhmm: string) => {
   const [h, m] = hhmm.split(':').map(Number)
@@ -23,20 +22,6 @@ export function isAvailable(item: Item, now = new Date()): boolean {
     return from <= to ? t >= from && t < to : t >= from || t < to
   }
   return true
-}
-
-/** الوقت ("9:00–12:00") والأيام ("الجمعة، السبت") لعرضهم. فاضيين إذا طول الوقت */
-export function scheduleParts(s: ItemSchedule | undefined): { time: string; days: string } {
-  return {
-    time: s?.from && s.to ? `${s.from.replace(/^0/, '')}–${s.to.replace(/^0/, '')}` : '',
-    days:
-      s?.days?.length && s.days.length < 7
-        ? [...s.days]
-            .sort()
-            .map((d) => WEEK_DAYS[d])
-            .join('، ')
-        : '',
-  }
 }
 
 /** "شاي ×2" → ["شاي", 2] */

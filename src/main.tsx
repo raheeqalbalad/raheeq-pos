@@ -6,6 +6,8 @@ import { seedIfEmpty, seedStockIfEmpty } from './db/seed'
 import { ensureGoal } from './lib/goal'
 import { ensureOffers } from './lib/offers'
 import { ensureCoalReset } from './lib/floor'
+import { cloudConfigured } from './lib/cloud/config'
+import { deviceMode } from './lib/cloud/device'
 import { SessionProvider } from './lib/session'
 import { db } from './db/db'
 import { keepScreenOn } from './lib/wakeLock'
@@ -40,6 +42,9 @@ function Boot() {
       .then(() => {
         done = true
         setState('ready')
+        // التابلت المربوط بالسحابة: بيرفع اللي فاته بالخلفية (بدون ما يأثر على الحفظ المحلي)
+        if (cloudConfigured && deviceMode() === 'cafe')
+          void import('./lib/cloud/sync').then((m) => m.startSync())
       })
       .catch((e: unknown) => {
         done = true

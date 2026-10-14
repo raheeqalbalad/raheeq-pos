@@ -20,14 +20,23 @@ import ExpensesScreen from './screens/ExpensesScreen'
 import CloseShiftScreen, { ClosedShiftScreen } from './screens/CloseShiftScreen'
 import Header from './components/Header'
 import ScreenNav, { type View } from './components/ScreenNav'
+import { PartnerLoginScreen, useDeviceMode, ViewerApp } from './screens/CloudScreens'
+import { cloudConfigured } from './lib/cloud/config'
 
 export default function App() {
   const { user } = useSession()
   const userCount = useLiveQuery(() => db.users.count(), [])
+  const mode = useDeviceMode()
+  const [partnerLogin, setPartnerLogin] = useState(false)
+
+  // تلفون الشريك: تقارير بس من نسخة السحابة (بدون رموز)
+  if (cloudConfigured && mode === 'viewer') return <ViewerApp />
+  if (partnerLogin) return <PartnerLoginScreen onBack={() => setPartnerLogin(false)} />
 
   if (!user) {
     if (userCount === undefined) return null
-    return userCount === 0 ? <SetupScreen /> : <LoginScreen />
+    const onPartner = cloudConfigured && mode !== 'cafe' ? () => setPartnerLogin(true) : undefined
+    return userCount === 0 ? <SetupScreen onPartner={onPartner} /> : <LoginScreen onPartner={onPartner} />
   }
   // key: كل دخول بيبلّش من الطاولات بحالة نظيفة (ما بيرجع لطلب أو شاشة من الجلسة اللي قبل)
   return <SignedIn key={user.id} />

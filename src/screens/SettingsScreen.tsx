@@ -10,6 +10,8 @@ import { getChecklists, saveChecklists, type Checklists } from '../lib/checklist
 import type { ChecklistTask } from '../db/types'
 import { formatJod, toFils } from '../lib/money'
 import MoneyInput from '../components/MoneyInput'
+import CloudSection from '../components/CloudSection'
+import MenuQrSection from '../components/MenuQrSection'
 
 const inputClass = 'h-12 min-w-0 rounded-xl bg-white px-3 text-lg ring-1 ring-cream-200 outline-none focus:ring-2 focus:ring-green'
 
@@ -23,6 +25,8 @@ export default function SettingsScreen() {
   return (
     <main className="flex-1 overflow-y-auto p-4">
       <div className="mx-auto flex max-w-2xl flex-col gap-4">
+        <CloudSection />
+        <MenuQrSection />
         {cliq && <CliqForm initial={cliq} />}
         {discounts && <DiscountForm initial={discounts} />}
         {checklists && <ChecklistsForm initial={checklists} />}

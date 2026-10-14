@@ -17,7 +17,7 @@ const inputClass = 'h-14 min-w-0 rounded-xl bg-white px-4 text-lg text-ink ring-
  * أول مرة بيفتح التطبيق على جهاز (ما في مستخدمين): المالك بيحدد الأسماء والرموز.
  * عشان هيك ما في ولا رمز مكتوب بالكود.
  */
-export default function SetupScreen() {
+export default function SetupScreen({ onPartner }: { onPartner?: () => void }) {
   const [rows, setRows] = useState<Row[]>([
     { role: 'owner', name: '', pin: '' },
     { role: 'partner', name: '', pin: '' },
@@ -93,6 +93,15 @@ export default function SetupScreen() {
         >
           احفظ وابلّش
         </button>
+        {onPartner && (
+          <button
+            type="button"
+            onClick={onPartner}
+            className="mt-3 h-12 w-full rounded-2xl text-green ring-1 ring-green/20 active:bg-cream-200"
+          >
+            أنا الشريك: دخول بالإيميل لشوف التقارير
+          </button>
+        )}
       </div>
     </div>
   )

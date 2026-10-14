@@ -6,6 +6,15 @@ import { VitePWA } from 'vite-plugin-pwa'
 // منشور على GitHub Pages تحت raheeqalbalad.github.io/raheeq-pos/
 export default defineConfig({
   base: '/raheeq-pos/',
+  // صفحتين: التطبيق، ومنيو الزباين العام (/raheeq-pos/menu/)
+  build: {
+    rollupOptions: {
+      input: {
+        main: 'index.html',
+        menu: 'menu/index.html',
+      },
+    },
+  },
   plugins: [
     react(),
     tailwindcss(),
@@ -39,6 +48,8 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,ico,woff,woff2}'],
+        // صفحة المنيو العامة مش جزء من التطبيق: ما نرجّعها لشاشة التطبيق
+        navigateFallbackDenylist: [/\/menu\//],
       },
     }),
   ],
