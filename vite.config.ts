@@ -16,6 +16,16 @@ export default defineConfig({
     },
   },
   plugins: [
+    // صفحة المنيو العامة مش التطبيق: ما بتربط الـ manifest (عشان الزبون ما ينعرض عليه يثبّت نظام البيع)
+    {
+      name: 'menu-without-manifest',
+      enforce: 'post',
+      generateBundle(_, bundle) {
+        const page = bundle['menu/index.html']
+        if (page?.type === 'asset' && typeof page.source === 'string')
+          page.source = page.source.replace(/\s*<link rel="manifest"[^>]*>/, '')
+      },
+    },
     react(),
     tailwindcss(),
     VitePWA({
@@ -35,14 +45,15 @@ export default defineConfig({
         display: 'fullscreen',
         display_override: ['fullscreen', 'standalone'],
         orientation: 'landscape',
-        // بالنسبة لمكان الـ manifest، فبيمشي مع /raheeq-pos/
-        start_url: './',
-        scope: './',
-        id: './',
+        // مسارات كاملة وصريحة (نفس هوية التطبيق المثبّت قبل: https://raheeqalbalad.github.io/raheeq-pos/)
+        id: '/raheeq-pos/',
+        start_url: '/raheeq-pos/',
+        scope: '/raheeq-pos/',
         icons: [
-          { src: 'pwa-64x64.png', sizes: '64x64', type: 'image/png' },
-          { src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png' },
-          { src: 'pwa-512x512.png', sizes: '512x512', type: 'image/png' },
+          { src: 'pwa-64x64.png', sizes: '64x64', type: 'image/png', purpose: 'any' },
+          { src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: 'pwa-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: 'maskable-icon-192x192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
           { src: 'maskable-icon-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },

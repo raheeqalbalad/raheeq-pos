@@ -3,7 +3,8 @@ import { defineConfig, minimal2023Preset } from '@vite-pwa/assets-generator/conf
 export default defineConfig({
   preset: {
     ...minimal2023Preset,
-    maskable: { ...minimal2023Preset.maskable, resizeOptions: { background: '#233D34' } },
+    // maskable بقياسين (192 و512) عشان تثبيت أندرويد (WebAPK)
+    maskable: { ...minimal2023Preset.maskable, sizes: [192, 512], resizeOptions: { background: '#233D34' } },
     apple: { ...minimal2023Preset.apple, resizeOptions: { background: '#233D34' } },
   },
   images: ['public/icon.svg'],
