@@ -198,7 +198,7 @@ export async function applyLoyaltyDiscount(orderId: number) {
     const lines = await db.orderLines.where('orderId').equals(orderId).toArray()
     const discount = loyaltyDiscountFor(linesTotal(lines), status.settings)
     const paid = paymentsTotal(await db.payments.where('orderId').equals(orderId).toArray())
-    if (orderDue(lines, { loyaltyDiscount: discount }) < paid) throw new Error('انْدفع من الطلب أكثر من المبلغ بعد الخصم')
+    if (orderDue(lines, { ...order, loyaltyDiscount: discount }) < paid) throw new Error('انْدفع من الطلب أكثر من المبلغ بعد الخصم')
     await db.orders.update(orderId, { loyaltyDiscount: discount })
   })
 }
@@ -207,7 +207,8 @@ export async function removeLoyaltyDiscount(orderId: number) {
   await db.transaction('rw', ['orders', 'orderLines', 'payments'], async () => {
     const lines = await db.orderLines.where('orderId').equals(orderId).toArray()
     const paid = paymentsTotal(await db.payments.where('orderId').equals(orderId).toArray())
-    if (linesTotal(lines) < paid) throw new Error('ما بنقدر نشيل الخصم')
+    const order = await db.orders.get(orderId)
+    if (orderDue(lines, { ...order, loyaltyDiscount: undefined }) < paid) throw new Error('ما بنقدر نشيل الخصم')
     await db.orders.update(orderId, { loyaltyDiscount: undefined })
   })
 }
@@ -222,7 +223,7 @@ export async function refreshLoyaltyDiscount(orderId: number) {
     db.payments.where('orderId').equals(orderId).toArray(),
   ])
   const discount = loyaltyDiscountFor(linesTotal(lines), settings)
-  if (discount !== order.loyaltyDiscount && orderDue(lines, { loyaltyDiscount: discount }) >= paymentsTotal(payments)) {
+  if (discount !== order.loyaltyDiscount && orderDue(lines, { ...order, loyaltyDiscount: discount }) >= paymentsTotal(payments)) {
     await db.orders.update(orderId, { loyaltyDiscount: discount })
   }
 }

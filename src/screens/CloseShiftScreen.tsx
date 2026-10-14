@@ -41,6 +41,12 @@ function SummaryCard({ shift, summary }: { shift: Shift; summary: ShiftSummary }
           <Row label="كليك" value={summary.cliq} />
           <Row label="مجموع المبيعات" value={summary.sales} strong />
           {summary.loyalty > 0 && <Row label="خصم ولاء (منقوص من المبيعات)" value={summary.loyalty} sign="−" />}
+          {summary.manual > 0 && <Row label="خصومات يدوية (منقوصة من المبيعات)" value={summary.manual} sign="−" />}
+          {summary.cliqSplit
+            .filter((r) => !r.isStaff)
+            .map((r) => (
+              <Row key={r.name} label={`  كليك — ${r.name}`} value={r.amount} />
+            ))}
           <Row label="مصاريف الدرج" value={summary.expenses} sign="−" />
           {summary.outside > 0 && <Row label="مصاريف من برا الدرج" value={summary.outside} sign="−" />}
           <Row label="الصافي" value={summary.net} strong />
@@ -63,6 +69,18 @@ function SummaryCard({ shift, summary }: { shift: Shift; summary: ShiftSummary }
           <Row label="مصاريف الدرج" value={summary.expenses} sign="−" />
           <Row label="المفروض بالدرج" value={summary.expectedCash} strong />
         </div>
+        {summary.cliqStaff > 0 && (
+          <div className="mt-3 rounded-xl bg-red-800/10 px-3 py-2 text-red-900">
+            {summary.cliqSplit
+              .filter((r) => r.isStaff)
+              .map((r) => (
+                <div key={r.name} className="flex items-baseline justify-between font-bold">
+                  <span>كليك على حساب الموظف ({r.name}) — لازم يتسلّم</span>
+                  <span className="num">{formatJod(r.amount)}</span>
+                </div>
+              ))}
+          </div>
+        )}
         <p className="mt-3 text-sm text-ink/60">
           فتحه {opener?.name} الساعة <span className="num">{timeLabel(shift.openedAt)}</span>
           {names && <> · باعوا: {names}</>}

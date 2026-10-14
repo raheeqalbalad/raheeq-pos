@@ -1,7 +1,8 @@
 import { useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db/db'
-import type { CafeTable, Item, LineOption, OrderLine } from '../db/types'
+import type { CafeTable, Guests, Item, LineOption, OrderLine } from '../db/types'
+import GuestsSheet, { guestsTotal } from '../components/GuestsSheet'
 import {
   addItem,
   linesTotal,
@@ -9,6 +10,7 @@ import {
   paymentsTotal,
   setLineQty,
   moveOrder,
+  setOrderGuests,
   voidOrder,
   type LineChangeResult,
   type OrderTarget,
@@ -23,6 +25,7 @@ import LineSheet from '../components/LineSheet'
 import Sheet from '../components/Sheet'
 import PaymentsList from '../components/PaymentsList'
 import { refreshLoyaltyDiscount } from '../lib/customers'
+import { refreshManualDiscount } from '../lib/discounts'
 import { useOwnerGate } from '../lib/useOwnerGate'
 
 export type OrderScreenProps = {
@@ -51,6 +54,10 @@ export default function OrderScreen({ orderId: initialId, target, title, onDone,
   const [paying, setPaying] = useState(false)
   const [confirmVoid, setConfirmVoid] = useState(false)
   const [moving, setMoving] = useState(false)
+  // عدد الزباين: بيطلع لحاله لما تنفتح طاولة جديدة (مش تيك أواي)
+  const isTable = 'tableId' in target
+  const [askGuests, setAskGuests] = useState(isTable && !initialId)
+  const pendingGuests = useRef<Guests | undefined>(undefined)
   const { requireOwner, sheet: ownerSheet } = useOwnerGate()
   const [panelOpen, setPanelOpen] = useState(false)
   const [notice, setNotice] = useState('')
@@ -66,9 +73,10 @@ export default function OrderScreen({ orderId: initialId, target, title, onDone,
   )
 
   const subtotal = linesTotal(lines ?? [])
-  const discount = Math.min(order?.loyaltyDiscount ?? 0, subtotal)
-  // المطلوب = الأصناف ناقص خصم الولاء
-  const total = subtotal - discount
+  const loyalty = order?.loyaltyDiscount ?? 0
+  const manual = order?.manualDiscount
+  // المطلوب = الأصناف ناقص الخصومات
+  const total = Math.max(0, subtotal - loyalty - (manual?.amount ?? 0))
   const paid = paymentsTotal(payments ?? [])
   const count = (lines ?? []).reduce((s, l) => s + l.qty, 0)
   const counts = useMemo(() => {
@@ -89,11 +97,14 @@ export default function OrderScreen({ orderId: initialId, target, title, onDone,
     if (idRef.current) {
       await addItem(idRef.current, target, item, options, user!.id!)
       await refreshLoyaltyDiscount(idRef.current)
+      await refreshManualDiscount(idRef.current)
       return
     }
     creating.current = addItem(undefined, target, item, options, user!.id!)
     try {
-      setOrderId(await creating.current)
+      const id = await creating.current
+      setOrderId(id)
+      if (pendingGuests.current) await setOrderGuests(id, pendingGuests.current)
     } finally {
       creating.current = null
     }
@@ -105,7 +116,7 @@ export default function OrderScreen({ orderId: initialId, target, title, onDone,
   }
 
   function handleLineResult(r: LineChangeResult) {
-    if (idRef.current) refreshLoyaltyDiscount(idRef.current)
+    if (idRef.current) refreshLoyaltyDiscount(idRef.current).then(() => refreshManualDiscount(idRef.current!))
     if (r === 'below-paid') flash(BELOW_PAID)
     if (r === 'order-removed') setOrderId(undefined)
   }
@@ -191,10 +202,18 @@ export default function OrderScreen({ orderId: initialId, target, title, onDone,
       </div>
 
       <div className="shrink-0 border-t border-cream-200 bg-cream p-3">
-        {discount > 0 && (
+        {loyalty > 0 && (
           <div className="mb-1 flex justify-between text-sm font-bold text-green">
             <span>خصم ولاء</span>
-            <span className="num">−{formatJod(discount)}</span>
+            <span className="num">−{formatJod(loyalty)}</span>
+          </div>
+        )}
+        {manual && (
+          <div className="mb-1 flex justify-between text-sm font-bold text-green">
+            <span>
+              خصم {manual.pct ? <span className="num">{manual.pct}%</span> : ''} ({manual.reason})
+            </span>
+            <span className="num">−{formatJod(manual.amount)}</span>
           </div>
         )}
         {paid > 0 && (
@@ -236,15 +255,27 @@ export default function OrderScreen({ orderId: initialId, target, title, onDone,
         title={displayTitle}
         onBack={() => onDone()}
         extra={
-          orderId && (
-            <button
-              type="button"
-              onClick={() => setMoving(true)}
-              className="h-12 shrink-0 rounded-xl border border-cream/30 px-4 active:bg-gold active:text-green"
-            >
-              نقل
-            </button>
-          )
+          <>
+            {isTable && (
+              <button
+                type="button"
+                onClick={() => setAskGuests(true)}
+                aria-label="عدد الزباين"
+                className="h-12 shrink-0 rounded-xl border border-cream/30 px-3 active:bg-gold active:text-green"
+              >
+                👥 <span className="num">{guestsTotal(order?.guests ?? pendingGuests.current) || '+'}</span>
+              </button>
+            )}
+            {orderId && (
+              <button
+                type="button"
+                onClick={() => setMoving(true)}
+                className="h-12 shrink-0 rounded-xl border border-cream/30 px-4 active:bg-gold active:text-green"
+              >
+                نقل
+              </button>
+            )}
+          </>
         }
       />
 
@@ -288,11 +319,25 @@ export default function OrderScreen({ orderId: initialId, target, title, onDone,
         <PaySheet
           orderId={orderId}
           order={order}
+          lines={lines ?? []}
+          label={displayTitle}
           subtotal={subtotal}
           total={total}
           paid={paid}
           onClose={() => setPaying(false)}
           onPaidFull={() => onDone(`انْدفع ${displayTitle} ✓`)}
+        />
+      )}
+      {askGuests && (
+        <GuestsSheet
+          title={`زباين ${displayTitle}`}
+          initial={order?.guests ?? pendingGuests.current}
+          onClose={() => setAskGuests(false)}
+          onSave={async (g) => {
+            setAskGuests(false)
+            pendingGuests.current = g
+            if (idRef.current) await setOrderGuests(idRef.current, g)
+          }}
         />
       )}
       {moving && orderId && (

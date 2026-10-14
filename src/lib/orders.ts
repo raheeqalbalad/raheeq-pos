@@ -3,6 +3,7 @@ import type { CafeTable, Item, LineOption, Order, OrderLine, Payment, PaymentMet
 import { getOpenShift } from './shift'
 import { logAudit, logPaymentCorrection } from './audit'
 import { formatJod } from './money'
+import { getCliqSettings } from './cliq'
 
 export type OrderTarget = { tableId: number; label: string } | { takeaway: true }
 
@@ -10,9 +11,14 @@ export function linesTotal(lines: OrderLine[]): number {
   return lines.reduce((sum, l) => sum + l.priceSnapshot * l.qty, 0)
 }
 
-/** المطلوب من الزبون: مجموع الأصناف ناقص خصم الولاء (ما بينزل تحت الصفر). */
-export function orderDue(lines: OrderLine[], order: Pick<Order, 'loyaltyDiscount'> | undefined): number {
-  return Math.max(0, linesTotal(lines) - (order?.loyaltyDiscount ?? 0))
+/** المطلوب من الزبون: مجموع الأصناف ناقص الخصومات (ما بينزل تحت الصفر). */
+export function orderDue(lines: OrderLine[], order: Pick<Order, 'loyaltyDiscount' | 'manualDiscount'> | undefined): number {
+  return Math.max(0, linesTotal(lines) - orderDiscounts(order))
+}
+
+/** مجموع الخصومات على الطلب (ولاء + يدوي). */
+export function orderDiscounts(order: Pick<Order, 'loyaltyDiscount' | 'manualDiscount'> | undefined): number {
+  return (order?.loyaltyDiscount ?? 0) + (order?.manualDiscount?.amount ?? 0)
 }
 
 export function paymentsTotal(payments: Payment[]): number {
@@ -157,6 +163,8 @@ export async function addPayment(
   method: PaymentMethod,
   amount: number,
   staffId: number,
+  /** للكليك: على حساب مين */
+  cliq?: { key: string; name: string },
 ): Promise<boolean> {
   return db.transaction('rw', ['orders', 'orderLines', 'payments', 'shifts'], async () => {
     const shift = await getOpenShift()
@@ -167,7 +175,15 @@ export async function addPayment(
     const remaining = total - paid
     if (amount <= 0 || amount > remaining) throw new Error('مبلغ غير صحيح')
 
-    await db.payments.add({ orderId, method, amount, createdAt: Date.now(), staffId, shiftId: shift.id! })
+    await db.payments.add({
+      orderId,
+      method,
+      amount,
+      createdAt: Date.now(),
+      staffId,
+      shiftId: shift.id!,
+      ...(method === 'cliq' && cliq ? { cliqAccount: cliq.key, cliqAccountName: cliq.name } : {}),
+    })
     if (paid + amount >= total) {
       await db.orders.update(orderId, { status: 'paid', closedAt: Date.now() })
       return true
@@ -209,8 +225,16 @@ export async function voidOrder(orderId: number, byUserId: number, approvedBy?: 
 /** تصحيح طريقة الدفع (كاش ↔ كليك). بيتسجّل مين صحّح ومتى، وبسجل التعديلات. */
 export async function correctPayment(payment: Payment, byUserId: number) {
   const to: PaymentMethod = payment.method === 'cash' ? 'cliq' : 'cash'
+  // كاش ← كليك: على الحساب التلقائي. كليك ← كاش: بنشيل الحساب.
+  const cliqSettings = await getCliqSettings()
+  const account = cliqSettings.accounts.find((a) => a.id === cliqSettings.defaultId)
   await db.transaction('rw', ['payments', 'paymentCorrections', 'orders', 'auditLog'], async () => {
-    await db.payments.update(payment.id!, { method: to })
+    await db.payments.update(
+      payment.id!,
+      to === 'cliq'
+        ? { method: to, cliqAccount: account?.id, cliqAccountName: account?.name }
+        : { method: to, cliqAccount: undefined, cliqAccountName: undefined },
+    )
     await db.paymentCorrections.add({
       paymentId: payment.id!,
       orderId: payment.orderId,
@@ -245,3 +269,7 @@ export function optionsLabel(options: LineOption[]): string {
   return options.map((o) => o.choice).join(' · ')
 }
 
+
+export async function setOrderGuests(orderId: number, guests: Order['guests']) {
+  await db.orders.update(orderId, { guests })
+}

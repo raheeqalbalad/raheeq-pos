@@ -344,6 +344,12 @@ function OrderEditor({ order: initial, onClose }: { order: Order; onClose: () =>
           <span className="num">−{formatJod(order.loyaltyDiscount)}</span>
         </p>
       )}
+      {order.manualDiscount && (
+        <p className="-mt-2 mb-4 flex justify-between border-t border-cream-200 pt-2 font-bold text-green">
+          <span>خصم ({order.manualDiscount.reason})</span>
+          <span className="num">−{formatJod(order.manualDiscount.amount)}</span>
+        </p>
+      )}
 
       {isVoid ? (
         <p className="rounded-xl bg-red-800/10 p-3 text-center text-red-900">الطلب ملغي، ودفعاته ما بتنحسب بالدخل</p>

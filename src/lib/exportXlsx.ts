@@ -107,7 +107,7 @@ export async function buildWorkbook() {
 
   // ===== أيام الشغل =====
   const days: Cell[][] = [
-    ['يوم الشغل', 'فتح', 'تسكير', 'كاش', 'كليك', 'الدخل', 'مصاريف الدرج', 'من برا الدرج', 'الصافي', 'طلبات', 'ملغي', 'كاش البداية', 'المعدود', 'فرق الدرج', 'تركت بالدرج', 'المسحوب', 'خصم ولاء'],
+    ['يوم الشغل', 'فتح', 'تسكير', 'كاش', 'كليك', 'الدخل', 'مصاريف الدرج', 'من برا الدرج', 'الصافي', 'طلبات', 'ملغي', 'كاش البداية', 'المعدود', 'فرق الدرج', 'تركت بالدرج', 'المسحوب', 'خصم ولاء', 'خصومات يدوية', 'كليك على حساب الموظف', 'زباين'],
   ]
   for (const d of [...report.days].reverse()) {
     const s = d.shift
@@ -130,6 +130,9 @@ export async function buildWorkbook() {
       s.closedAt && leftInDrawerOf(s) !== undefined ? money(leftInDrawerOf(s)!) : null,
       d.withdrawn !== undefined ? money(d.withdrawn) : null,
       d.loyalty ? money(d.loyalty) : null,
+      d.manual ? money(d.manual) : null,
+      d.cliqStaff ? money(d.cliqStaff) : null,
+      d.men + d.women + d.kids || null,
     ])
   }
 
@@ -158,7 +161,7 @@ export async function buildWorkbook() {
 
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, wsHisab, 'الحساب')
-  XLSX.utils.book_append_sheet(wb, sheetFrom(days, [12, 8, 8, 10, 10, 10, 12, 12, 10, 8, 8, 12, 10, 10, 12, 10, 10]), 'أيام الشغل')
+  XLSX.utils.book_append_sheet(wb, sheetFrom(days, [12, 8, 8, 10, 10, 10, 12, 12, 10, 8, 8, 12, 10, 10, 12, 10, 10, 12, 18, 8]), 'أيام الشغل')
   XLSX.utils.book_append_sheet(wb, sheetFrom(items, [24, 10, 12]), 'الأصناف')
   XLSX.utils.book_append_sheet(wb, sheetFrom(hours, [10, 10, 12]), 'الساعات')
   XLSX.utils.book_append_sheet(wb, sheetFrom(expenses, [12, 8, 24, 10, 10, 12]), 'المصاريف')

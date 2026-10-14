@@ -1,6 +1,7 @@
 import { db } from '../db/db'
 import type { Expense, ExpenseSource, Order, OrderLine, Shift } from '../db/types'
 import { expenseSource, withdrawnOf } from './shift'
+import { splitCliq, type CliqSplitRow } from './cliq'
 
 // «يوم الشغل» = شيفت (من فتحه لتسكيره)، مش اليوم بالتقويم.
 // بيع بعد نص الليل بينحسب على نفس يوم الشغل، والشهر بيتحدد من تاريخ فتح الشيفت.
@@ -52,6 +53,16 @@ export interface Totals {
   voids: number
   /** خصم الولاء على الطلبات المدفوعة */
   loyalty: number
+  /** الخصومات اليدوية على الطلبات المدفوعة */
+  manual: number
+  /** عدد الزباين المسجّل على الطلبات المدفوعة */
+  men: number
+  women: number
+  kids: number
+  /** مبيعات الطلبات اللي إلها عدد زباين (لمعدّل الصرف للشخص) */
+  guestSales: number
+  /** كليك على حساب الموظف (لازم يتسلّم) */
+  cliqStaff: number
 }
 
 export interface DayRow extends Totals {
@@ -77,6 +88,19 @@ export interface HourRow {
   hour: number
   orders: number
   sales: number
+  /** عدد الزباين المسجّل بهالساعة */
+  guests: number
+}
+
+export interface ManualDiscountRow {
+  label: string
+  at: number
+  amount: number
+  pct?: number
+  reason: string
+  byUserId: number
+  approvedBy?: number
+  customerId?: number
 }
 
 export interface ExpenseReasonRow {
@@ -98,6 +122,9 @@ export interface CancellationRow {
 export interface Report {
   totals: Totals
   cancellations: CancellationRow[]
+  /** الكليك حسب الحساب */
+  cliqSplit: CliqSplitRow[]
+  manualDiscounts: ManualDiscountRow[]
   days: DayRow[]
   months: MonthRow[]
   items: ItemRow[]
@@ -106,7 +133,23 @@ export interface Report {
   expenses: Expense[]
 }
 
-const emptyTotals = (): Totals => ({ cash: 0, cliq: 0, sales: 0, expenses: 0, outside: 0, net: 0, orders: 0, voids: 0, loyalty: 0 })
+const emptyTotals = (): Totals => ({
+  cash: 0,
+  cliq: 0,
+  sales: 0,
+  expenses: 0,
+  outside: 0,
+  net: 0,
+  orders: 0,
+  voids: 0,
+  loyalty: 0,
+  manual: 0,
+  men: 0,
+  women: 0,
+  kids: 0,
+  guestSales: 0,
+  cliqStaff: 0,
+})
 
 function addTotals(a: Totals, b: Totals) {
   a.cash += b.cash
@@ -118,6 +161,12 @@ function addTotals(a: Totals, b: Totals) {
   a.orders += b.orders
   a.voids += b.voids
   a.loyalty += b.loyalty
+  a.manual += b.manual
+  a.men += b.men
+  a.women += b.women
+  a.kids += b.kids
+  a.guestSales += b.guestSales
+  a.cliqStaff += b.cliqStaff
 }
 
 /** كل الشيفتات، الأحدث أول. */
@@ -157,6 +206,13 @@ export async function buildReport(shifts: Shift[]): Promise<Report> {
     ? await db.orderLines.where('orderId').anyOf(paidOrders.map((o) => o.id!)).toArray()
     : []
 
+  const orderDueById = new Map<number, number>()
+  for (const l of lines) orderDueById.set(l.orderId, (orderDueById.get(l.orderId) ?? 0) + l.qty * l.priceSnapshot)
+  for (const o of paidOrders) {
+    const gross = orderDueById.get(o.id!) ?? 0
+    orderDueById.set(o.id!, Math.max(0, gross - (o.loyaltyDiscount ?? 0) - (o.manualDiscount?.amount ?? 0)))
+  }
+
   // أيام الشغل
   const byShift = new Map<number, DayRow>(shifts.map((s) => [s.id!, { shift: s, ...emptyTotals() }]))
   for (const p of counted) {
@@ -164,6 +220,7 @@ export async function buildReport(shifts: Shift[]): Promise<Report> {
     row[p.method] += p.amount
     row.sales += p.amount
   }
+  for (const p of counted) if (p.method === 'cliq' && p.cliqAccount?.startsWith('staff:')) byShift.get(p.shiftId)!.cliqStaff += p.amount
   for (const e of expenses) {
     const row = byShift.get(e.shiftId)!
     if (expenseSource(e) === 'outside') row.outside += e.amount
@@ -174,6 +231,13 @@ export async function buildReport(shifts: Shift[]): Promise<Report> {
     if (o.status === 'paid') {
       row.orders++
       row.loyalty += o.loyaltyDiscount ?? 0
+      row.manual += o.manualDiscount?.amount ?? 0
+      if (o.guests) {
+        row.men += o.guests.men
+        row.women += o.guests.women
+        row.kids += o.guests.kids
+        row.guestSales += orderDueById.get(o.id!) ?? 0
+      }
     } else if (o.status === 'void') row.voids++
   }
   const days = [...byShift.values()]
@@ -216,9 +280,10 @@ export async function buildReport(shifts: Shift[]): Promise<Report> {
   const hourMap = new Map<number, HourRow>()
   for (const o of paidOrders) {
     const hour = new Date(o.openedAt).getHours()
-    const row = hourMap.get(hour) ?? { hour, orders: 0, sales: 0 }
+    const row = hourMap.get(hour) ?? { hour, orders: 0, sales: 0, guests: 0 }
     row.orders++
     row.sales += orderTotal.get(o.id!) ?? 0
+    row.guests += o.guests ? o.guests.men + o.guests.women + o.guests.kids : 0
     hourMap.set(hour, row)
   }
   const hours = [...hourMap.values()]
@@ -253,9 +318,25 @@ export async function buildReport(shifts: Shift[]): Promise<Report> {
     (a, b) => b.voidAmount + b.removalAmount - (a.voidAmount + a.removalAmount),
   )
 
+  const manualDiscounts: ManualDiscountRow[] = paidOrders
+    .filter((o) => o.manualDiscount)
+    .map((o) => ({
+      label: o.label,
+      at: o.closedAt!,
+      amount: o.manualDiscount!.amount,
+      pct: o.manualDiscount!.pct,
+      reason: o.manualDiscount!.reason,
+      byUserId: o.manualDiscount!.byUserId,
+      approvedBy: o.manualDiscount!.approvedBy,
+      customerId: o.customerId,
+    }))
+    .sort((a, b) => b.at - a.at)
+
   return {
     totals,
     cancellations,
+    cliqSplit: splitCliq(counted),
+    manualDiscounts,
     days,
     months,
     items,

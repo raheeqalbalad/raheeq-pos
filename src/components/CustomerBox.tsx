@@ -26,7 +26,6 @@ export default function CustomerBox({ order, subtotal, paid }: { order: Order; s
   const [phone, setPhone] = useState('')
   const [name, setName] = useState('')
   const [optIn, setOptIn] = useState(false)
-  const [isNew, setIsNew] = useState(false)
   const [error, setError] = useState('')
 
   const run = async (fn: () => Promise<void>) => {
@@ -38,23 +37,21 @@ export default function CustomerBox({ order, subtotal, paid }: { order: Order; s
     }
   }
 
-  async function lookup() {
+  /** بيدوّر على الرقم: إذا موجود بيربطه (وبيكمّل اسمه إذا ناقص)، وإذا جديد بيسجّله. */
+  async function register() {
     const p = normalizePhone(phone)
     if (!p) return setError('اكتب رقم موبايل أردني (07...)')
     const found = await findCustomer(p)
+    let id = found?.id
     if (found) {
-      await attachCustomer(order.id!, found.id)
-      setPhone('')
-    } else setIsNew(true)
-  }
-
-  async function createAndAttach() {
-    const id = await saveCustomer({ phone, name, marketingOptIn: optIn })
+      if (name.trim() && !found.name) await saveCustomer({ ...found, name })
+    } else {
+      id = await saveCustomer({ phone, name, marketingOptIn: optIn })
+    }
     await attachCustomer(order.id!, id)
     setPhone('')
     setName('')
     setOptIn(false)
-    setIsNew(false)
   }
 
   // زبون مربوط بالطلب
@@ -128,40 +125,29 @@ export default function CustomerBox({ order, subtotal, paid }: { order: Order; s
       <h3 className="mb-2 font-bold text-green">
         الزبون <span className="text-sm font-normal text-ink/50">(اختياري، لكرت الولاء)</span>
       </h3>
-      <div className="flex gap-2">
+      <div className="grid grid-cols-[1fr_1fr_auto] gap-2">
         <input
           value={phone}
-          onChange={(e) => {
-            setPhone(e.target.value.replace(/[^\d+]/g, ''))
-            setIsNew(false)
-          }}
+          onChange={(e) => setPhone(e.target.value.replace(/[^\d+ ]/g, ''))}
           inputMode="tel"
           placeholder="رقم التلفون 07..."
-          className={`${inputClass} num flex-1`}
+          className={`${inputClass} num`}
         />
-        {!isNew && (
-          <button
-            type="button"
-            disabled={!phone}
-            onClick={() => run(lookup)}
-            className="h-12 shrink-0 rounded-xl bg-green px-4 font-bold text-cream active:bg-green-700 disabled:opacity-30"
-          >
-            سجّل
-          </button>
-        )}
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="اسم الزبون (اختياري)" className={inputClass} />
+        <button
+          type="button"
+          disabled={!phone}
+          onClick={() => run(register)}
+          className="h-12 shrink-0 rounded-xl bg-green px-4 font-bold text-cream active:bg-green-700 disabled:opacity-30"
+        >
+          سجّل
+        </button>
       </div>
-      {isNew && (
-        <div className="mt-2 flex flex-col gap-2">
-          <p className="text-sm text-ink/60">زبون جديد</p>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="الاسم (اختياري)" className={inputClass} />
-          <label className="flex h-12 items-center gap-2 rounded-xl bg-white px-3 ring-1 ring-cream-200">
-            <input type="checkbox" checked={optIn} onChange={(e) => setOptIn(e.target.checked)} className="size-5 accent-green" />
-            موافق ينبعتله عروض
-          </label>
-          <button type="button" onClick={() => run(createAndAttach)} className="h-12 rounded-xl bg-green font-bold text-cream active:bg-green-700">
-            احفظ الزبون
-          </button>
-        </div>
+      {phone && (
+        <label className="mt-2 flex h-10 items-center gap-2 text-sm text-ink/70">
+          <input type="checkbox" checked={optIn} onChange={(e) => setOptIn(e.target.checked)} className="size-5 accent-green" />
+          موافق ينبعتله عروض (للزبون الجديد)
+        </label>
       )}
       {error && <p className="mt-2 text-sm font-bold text-red-700">{error}</p>}
     </section>

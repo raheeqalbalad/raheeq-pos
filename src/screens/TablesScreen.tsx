@@ -4,6 +4,7 @@ import { db } from '../db/db'
 import type { CafeTable, Order } from '../db/types'
 import { orderDue } from '../lib/orders'
 import { formatJod } from '../lib/money'
+import { guestsTotal } from '../components/GuestsSheet'
 
 export type OpenRequest =
   | { kind: 'table'; table: CafeTable; orderId?: number }
@@ -65,7 +66,14 @@ export default function TablesScreen({ onOpen, message }: { onOpen: (r: OpenRequ
                       {o ? (
                         <>
                           <span className="num font-display text-lg text-gold">{formatJod(o.total)}</span>
-                          <span className="text-xs opacity-70">{minutesSince(o.order.openedAt, now)}</span>
+                          <span className="text-xs opacity-70">
+                            {minutesSince(o.order.openedAt, now)}
+                            {guestsTotal(o.order.guests) > 0 && (
+                              <>
+                                {' · '}👥 <span className="num">{guestsTotal(o.order.guests)}</span>
+                              </>
+                            )}
+                          </span>
                         </>
                       ) : (
                         <span className="text-xs text-ink/40">فاضية</span>

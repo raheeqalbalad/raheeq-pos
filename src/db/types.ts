@@ -89,6 +89,33 @@ export interface Order {
   customerId?: number
   /** خصم الولاء بالـ fils (سطر واضح بالفاتورة) */
   loyaltyDiscount?: number
+  /** عدد الزباين على الطاولة (اختياري) */
+  guests?: Guests
+  /** خصم يدوي (منفصل عن خصم الولاء) */
+  manualDiscount?: ManualDiscount
+}
+
+export interface ManualDiscount {
+  /** قيمة الخصم بالـ fils */
+  amount: number
+  /** إذا الخصم نسبة: بيتحسب من جديد إذا تغيّرت الأصناف */
+  pct?: number
+  reason: string
+  byUserId: number
+  /** إذا أكثر من المسموح للموظف: رمز المالك */
+  approvedBy?: number
+  at: number
+}
+
+export interface DiscountSettings {
+  /** أقصى نسبة بيعطيها الموظف لحاله (أكثر بده رمز المالك) */
+  staffMaxPct: number
+}
+
+export interface Guests {
+  men: number
+  women: number
+  kids: number
 }
 
 export interface LineOption {
@@ -122,6 +149,23 @@ export interface Payment {
   staffId: number
   /** الشيفت اللي دخلت فيه المصاري على الدرج */
   shiftId: number
+  /** الكليك على حساب مين: id حساب من الإعدادات، أو `staff:<userId>` للموظف اللي فاتح الشيفت */
+  cliqAccount?: string
+  /** اسم الحساب وقت الدفع (للعرض والتقارير) */
+  cliqAccountName?: string
+}
+
+/** حساب كليك (المالك بيضيفه ويسمّيه من الإعدادات) */
+export interface CliqAccount {
+  id: string
+  name: string
+  active: boolean
+}
+
+export interface CliqSettings {
+  accounts: CliqAccount[]
+  /** الحساب التلقائي لما الموظف يختار كليك */
+  defaultId: string
 }
 
 /** سجل تصحيح طريقة الدفع (كاش ↔ كليك). */
@@ -201,7 +245,7 @@ export interface StockCount {
 
 // ===== سجل التعديلات (مين عدّل شو ومتى، وشو كان قبل) =====
 
-export type AuditKind = 'line' | 'void' | 'payment' | 'expense-edit' | 'expense-delete'
+export type AuditKind = 'line' | 'void' | 'payment' | 'expense-edit' | 'expense-delete' | 'discount'
 
 export interface AuditEntry {
   id?: number

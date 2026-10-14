@@ -1,5 +1,6 @@
 import { db } from '../db/db'
 import type { Expense, ExpenseSource, Shift } from '../db/types'
+import { splitCliq, type CliqSplitRow } from './cliq'
 
 /** في درج واحد، فبيكون في شيفت مفتوح واحد بس بأي وقت. */
 export async function getOpenShift(): Promise<Shift | undefined> {
@@ -53,6 +54,12 @@ export interface ShiftSummary {
   voidOrders: number
   /** خصم الولاء على طلبات الشيفت المدفوعة */
   loyalty: number
+  /** خصومات يدوية على طلبات الشيفت المدفوعة */
+  manual: number
+  /** الكليك مقسوم حسب الحساب */
+  cliqSplit: CliqSplitRow[]
+  /** كليك على حساب الموظف: لازم يتسلّم منه */
+  cliqStaff: number
   /** مين باع بالشيفت */
   staffIds: number[]
 }
@@ -90,6 +97,11 @@ export async function shiftSummary(shift: Shift): Promise<ShiftSummary> {
     expectedCash: shift.openingCash + cash - expenses,
     paidOrders: closedInShift.filter((o) => o.status === 'paid').length,
     loyalty: closedInShift.filter((o) => o.status === 'paid').reduce((s, o) => s + (o.loyaltyDiscount ?? 0), 0),
+    manual: closedInShift.filter((o) => o.status === 'paid').reduce((s, o) => s + (o.manualDiscount?.amount ?? 0), 0),
+    cliqSplit: splitCliq(counted),
+    cliqStaff: splitCliq(counted)
+      .filter((r) => r.isStaff)
+      .reduce((s, r) => s + r.amount, 0),
     voidOrders: closedInShift.filter((o) => o.status === 'void').length,
     staffIds: [...new Set(counted.map((p) => p.staffId))],
   }

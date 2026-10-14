@@ -181,6 +181,26 @@ function ReportBody({ report, mode }: { report: Report; mode: Mode }) {
 
       <Card title="كاش مقابل كليك">
         <CashCliq cash={t.cash} cliq={t.cliq} />
+        {report.cliqSplit.length > 0 && (
+          <div className="mt-4 border-t border-cream-200 pt-3">
+            <h3 className="mb-2 text-sm font-bold text-green">الكليك حسب الحساب</h3>
+            <ul className="flex flex-col gap-1">
+              {report.cliqSplit.map((r) => (
+                <li
+                  key={`${r.isStaff}${r.name}`}
+                  className={`flex items-baseline justify-between rounded-lg px-3 py-1.5 ${r.isStaff ? 'bg-red-800/10 font-bold text-red-900' : ''}`}
+                >
+                  <span>{r.isStaff ? `كليك على حساب الموظف (${r.name}) — لازم يتسلّم` : r.name}</span>
+                  <span className="num">{formatJod(r.amount)}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </Card>
+
+      <Card title="الزباين">
+        <Guests totals={t} hours={report.hours} />
       </Card>
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -212,7 +232,7 @@ function ReportBody({ report, mode }: { report: Report; mode: Mode }) {
       {mode !== 'day' && (
         <Card title="دخل كل يوم شغل">
           <Table
-            head={['اليوم', 'كاش', 'كليك', 'الدخل', 'مصاريف', 'الصافي', 'فرق الدرج', 'المسحوب']}
+            head={['اليوم', 'كاش', 'كليك', 'الدخل', 'مصاريف', 'الصافي', 'زباين', 'فرق الدرج', 'المسحوب']}
             rows={report.days.map((d) => [
               `${dayLabel(d.shift.openedAt)}${d.shift.closedAt ? '' : ' (مفتوح)'}`,
               formatJod(d.cash),
@@ -220,12 +240,17 @@ function ReportBody({ report, mode }: { report: Report; mode: Mode }) {
               formatJod(d.sales),
               formatJod(d.expenses + d.outside),
               formatJod(d.net),
+              String(d.men + d.women + d.kids || '—'),
               d.drawerDiff === undefined ? '—' : d.drawerDiff === 0 ? '✓' : `${d.drawerDiff > 0 ? '+' : '−'}${formatJod(Math.abs(d.drawerDiff))}`,
               d.withdrawn === undefined ? '—' : formatJod(d.withdrawn),
             ])}
           />
         </Card>
       )}
+
+      <Card title="الخصومات">
+        <Discounts loyalty={t.loyalty} manual={t.manual} rows={report.manualDiscounts} />
+      </Card>
 
       <Card title="الإلغاءات وشيل الأصناف حسب الموظف">
         <Cancellations rows={report.cancellations} />
@@ -569,5 +594,67 @@ function Cancellations({ rows }: { rows: Report['cancellations'] }) {
         formatJod(r.voidAmount + r.removalAmount),
       ])}
     />
+  )
+}
+
+function Guests({ totals: t, hours }: { totals: Report['totals']; hours: HourRow[] }) {
+  const total = t.men + t.women + t.kids
+  if (!total) return <p className="text-ink/50">ما انسجّل عدد زباين بهالفترة (بيتسجّل لما تنفتح طاولة)</p>
+  const byHour = hours.filter((h) => h.guests > 0).sort((a, b) => hourOrder(a.hour) - hourOrder(b.hour))
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+        {(
+          [
+            ['المجموع', String(total)],
+            ['رجال', String(t.men)],
+            ['نساء', String(t.women)],
+            ['أطفال', String(t.kids)],
+            ['معدّل الصرف للشخص', formatJod(t.guestSales / total)],
+          ] as const
+        ).map(([k, v]) => (
+          <div key={k} className="rounded-xl bg-cream-200/60 p-3 text-center">
+            <div className="text-xs text-ink/60">{k}</div>
+            <div className="num font-display text-xl text-green">{v}</div>
+          </div>
+        ))}
+      </div>
+      {byHour.length > 0 && (
+        <Table head={['الساعة', 'زباين', 'طلبات']} rows={byHour.map((h) => [hourLabel(h.hour), String(h.guests), String(h.orders)])} />
+      )}
+      <p className="text-xs text-ink/50">معدّل الصرف = مبيعات الطاولات اللي انسجّل عدد زباينها ÷ عددهم.</p>
+    </div>
+  )
+}
+
+function Discounts({ loyalty, manual, rows }: { loyalty: number; manual: number; rows: Report['manualDiscounts'] }) {
+  const names = useLiveQuery(async () => new Map((await db.users.toArray()).map((u) => [u.id!, u.name])), [])
+  const customers = useLiveQuery(async () => new Map((await db.customers.toArray()).map((c) => [c.id!, c.name || c.phone])), [])
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="grid grid-cols-2 gap-2">
+        <div className="rounded-xl bg-cream-200/60 p-3 text-center">
+          <div className="text-xs text-ink/60">خصم الولاء</div>
+          <div className="num font-display text-xl text-green">{formatJod(loyalty)}</div>
+        </div>
+        <div className="rounded-xl bg-cream-200/60 p-3 text-center">
+          <div className="text-xs text-ink/60">خصومات يدوية</div>
+          <div className="num font-display text-xl text-green">{formatJod(manual)}</div>
+        </div>
+      </div>
+      {rows.length > 0 && (
+        <Table
+          head={['اليوم', 'الطلب', 'الخصم', 'السبب', 'مين عطاه', 'لمين']}
+          rows={rows.map((r) => [
+            `${dayLabel(r.at)} ${timeLabelOf(r.at)}`,
+            r.label,
+            `${formatJod(r.amount)}${r.pct ? ` (${r.pct}%)` : ''}`,
+            r.reason,
+            `${names?.get(r.byUserId) ?? '—'}${r.approvedBy ? ` بموافقة ${names?.get(r.approvedBy) ?? 'المالك'}` : ''}`,
+            r.customerId ? (customers?.get(r.customerId) ?? '—') : '—',
+          ])}
+        />
+      )}
+    </div>
   )
 }

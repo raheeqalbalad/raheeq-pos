@@ -11,6 +11,7 @@ import MenuEditorScreen from './screens/MenuEditorScreen'
 import UsersScreen from './screens/UsersScreen'
 import DayLogScreen from './screens/DayLogScreen'
 import CustomersScreen from './screens/CustomersScreen'
+import SettingsScreen from './screens/SettingsScreen'
 import TablesScreen, { type OpenRequest } from './screens/TablesScreen'
 import OrderScreen from './screens/OrderScreen'
 import OpenShiftScreen from './screens/OpenShiftScreen'
@@ -119,6 +120,7 @@ function SignedIn() {
       {view === 'reports' && owner && <ReportsScreen />}
       {view === 'daylog' && owner && <DayLogScreen />}
       {view === 'customers' && owner && <CustomersScreen />}
+      {view === 'settings' && owner && <SettingsScreen />}
       {view === 'menu' && owner && <MenuEditorScreen />}
       {view === 'users' && owner && <UsersScreen />}
     </div>
