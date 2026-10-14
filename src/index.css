@@ -1,0 +1,42 @@
+@import 'tailwindcss';
+@import '@fontsource/tajawal/400.css';
+@import '@fontsource/tajawal/500.css';
+@import '@fontsource/tajawal/700.css';
+@import '@fontsource/reem-kufi/500.css';
+@import '@fontsource/reem-kufi/700.css';
+
+@theme {
+  --color-green: #233d34;
+  --color-green-700: #2e4f43;
+  --color-green-100: #dfe6e1;
+  --color-gold: #fec27f;
+  --color-gold-600: #f2a955;
+  --color-cream: #f6ebdd;
+  --color-cream-200: #ecdcc6;
+  --color-ink: #1c2622;
+
+  --font-sans: 'Tajawal', system-ui, sans-serif;
+  --font-display: 'Reem Kufi', 'Tajawal', sans-serif;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  background: var(--color-cream);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+  user-select: none;
+}
+
+/* الأسعار والأرقام دايمًا إنجليزي وبنفس العرض */
+.num {
+  font-variant-numeric: tabular-nums;
+  direction: ltr;
+  unicode-bidi: isolate;
+}

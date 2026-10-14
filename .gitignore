@@ -1,0 +1,31 @@
+# ===== ممنوع ينرفعوا أبدًا (الـ repo public) =====
+# البريف وشيت الحسابات والرواتب
+docs/
+# تعليمات المشروع الداخلية
+CLAUDE.md
+# إعدادات Claude المحلية
+.claude/
+# أي ملف إكسل أو CSV (حسابات، رواتب، تصدير من السيستم)
+*.xlsx
+*.xls
+*.csv
+# نسخ احتياطية من السيستم (فيها المبيعات والرموز)
+raheeq-backup-*.json
+*backup*.json
+# أسرار ومفاتيح
+.env
+.env.*
+*.pem
+*.key
+
+# ===== ملفات بناء ومحلية =====
+node_modules
+dist
+dev-dist
+*.local
+*.tsbuildinfo
+.DS_Store
+.vercel
+
+# أدوات محلية (gh)
+.tools/
