@@ -20,8 +20,10 @@ export default defineConfig({
         dir: 'rtl',
         theme_color: '#233D34',
         background_color: '#F6EBDD',
-        display: 'standalone',
-        orientation: 'any',
+        // من الأيقونة: شاشة كاملة بدون شريط الحالة، وبالعرض
+        display: 'fullscreen',
+        display_override: ['fullscreen', 'standalone'],
+        orientation: 'landscape',
         // بالنسبة لمكان الـ manifest، فبيمشي مع /raheeq-pos/
         start_url: './',
         scope: './',
