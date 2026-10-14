@@ -24,6 +24,7 @@ import { useSession } from '../lib/session'
 import { useOwnerGate } from '../lib/useOwnerGate'
 import Sheet from '../components/Sheet'
 import GoalCard from '../components/GoalCard'
+import ShareSummaryButton from '../components/ShareSummaryButton'
 
 // ألوان الرسوم (متأكد منها بفاحص عمى الألوان، ومعها أسماء ظاهرة دايمًا)
 const CASH = '#1F8A5E'
@@ -118,6 +119,9 @@ export default function ReportsScreen() {
           )}
         </div>
 
+        {chosen.length > 0 && (
+          <ShareSummaryButton shifts={chosen} label={mode === 'day' ? 'شارك ملخص اليوم' : 'شارك ملخص الفترة'} />
+        )}
         {report && <ReportBody report={report} mode={mode} />}
         <Tools canWipe={user?.role === 'owner'} />
       </div>
@@ -273,6 +277,10 @@ function ReportBody({ report, mode }: { report: Report; mode: Mode }) {
 
       <Card title="الخصومات">
         <Discounts loyalty={t.loyalty} manual={t.manual} rows={report.manualDiscounts} />
+      </Card>
+
+      <Card title="أداء الموظفين">
+        <StaffPerformance rows={report.staff} />
       </Card>
 
       <Card title="الإلغاءات وشيل الأصناف حسب الموظف">
@@ -739,6 +747,79 @@ function DrawerByStaff({ rows, days }: { rows: Report['drawerByStaff']; days: Re
           </ul>
         </div>
       )}
+    </div>
+  )
+}
+
+function StaffPerformance({ rows }: { rows: Report['staff'] }) {
+  const names = useLiveQuery(async () => new Map((await db.users.toArray()).map((u) => [u.id!, u.name])), [])
+  if (!rows.length) return <p className="text-ink/50">ما في شغل بهالفترة</p>
+  const head = ['الموظف', 'شيفتات', 'طلبات', 'المبيعات', 'معدّل الفاتورة', 'خصومات يدوية', 'إلغاءات', 'فرق الدرج']
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-cream-200 text-ink/60">
+            {head.map((h) => (
+              <th key={h} className="px-2 py-2 text-start font-medium whitespace-nowrap">
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => {
+            const net = r.drawerOver - r.drawerShort
+            return (
+              <tr key={r.userId} className="border-b border-cream-200/60">
+                <td className="px-2 py-2 font-medium whitespace-nowrap text-green">{names?.get(r.userId) ?? '—'}</td>
+                <td className="px-2 py-2">
+                  <span className="num">{r.shifts}</span>
+                </td>
+                <td className="px-2 py-2">
+                  <span className="num">{r.orders}</span>
+                </td>
+                <td className="px-2 py-2">
+                  <span className="num font-bold">{formatJod(r.sales)}</span>
+                </td>
+                <td className="px-2 py-2">
+                  <span className="num">{r.orders ? formatJod(r.sales / r.orders) : '—'}</span>
+                </td>
+                <td className="px-2 py-2 whitespace-nowrap">
+                  {r.manualCount ? (
+                    <>
+                      <span className="num">{formatJod(r.manual)}</span> <span className="text-xs text-ink/50">({r.manualCount})</span>
+                    </>
+                  ) : (
+                    <span className="text-ink/40">—</span>
+                  )}
+                </td>
+                <td className="px-2 py-2 whitespace-nowrap">
+                  {r.cancels ? (
+                    <>
+                      <span className="num">{formatJod(r.cancelAmount)}</span> <span className="text-xs text-ink/50">({r.cancels})</span>
+                    </>
+                  ) : (
+                    <span className="text-ink/40">—</span>
+                  )}
+                </td>
+                <td className="px-2 py-2 whitespace-nowrap">
+                  {r.drawerOver || r.drawerShort ? (
+                    <span className={`num font-bold ${net > 0 ? 'text-emerald-800' : net < 0 ? 'text-red-800' : 'text-green'}`}>
+                      {net === 0 ? '0.00' : `${net > 0 ? '+' : '−'}${formatJod(Math.abs(net))}`}
+                    </span>
+                  ) : (
+                    <span className="text-ink/40">{r.shifts ? '✓' : '—'}</span>
+                  )}
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+      <p className="mt-2 text-xs text-ink/50">
+        المبيعات والطلبات حسب مين فتح الطلب، والخصومات حسب مين عطاها، وفرق الدرج على الموظف اللي فتح الشيفت. الرقم بين القوسين = كم مرة.
+      </p>
     </div>
   )
 }

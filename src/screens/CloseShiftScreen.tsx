@@ -8,6 +8,7 @@ import { useSession } from '../lib/session'
 import { useOwnerGate } from '../lib/useOwnerGate'
 import { allChecked, getChecklists, toggleCloseCheck } from '../lib/checklists'
 import { ChecklistInput, ChecklistView } from '../components/Checklist'
+import ShareSummaryButton from '../components/ShareSummaryButton'
 import { timeLabel } from '../components/PaymentsList'
 import MoneyInput from '../components/MoneyInput'
 import Sheet from '../components/Sheet'
@@ -364,13 +365,16 @@ export function ClosedShiftScreen({ shiftId, onDone }: { shiftId: number; onDone
             </section>
           )}
           <SummaryCard shift={shift} summary={summary} />
-          <button
-            type="button"
-            onClick={onDone}
-            className="h-14 rounded-2xl bg-gold text-lg font-bold text-green active:bg-gold-600"
-          >
-            تمام، خروج
-          </button>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <ShareSummaryButton shifts={[shift]} />
+            <button
+              type="button"
+              onClick={onDone}
+              className="h-14 rounded-2xl bg-gold text-lg font-bold text-green active:bg-gold-600"
+            >
+              تمام، خروج
+            </button>
+          </div>
         </div>
       </main>
     </div>

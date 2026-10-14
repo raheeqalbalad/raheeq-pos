@@ -157,6 +157,23 @@ export async function buildWorkbook() {
     ])
   }
 
+  // ===== أداء الموظفين =====
+  const staffSheet: Cell[][] = [['الموظف', 'شيفتات', 'طلبات', 'المبيعات', 'معدّل الفاتورة', 'خصومات يدوية', 'عدد الخصومات', 'إلغاءات (قيمة)', 'عدد الإلغاءات', 'زيادة بالدرج', 'نقص بالدرج']]
+  for (const r of report.staff)
+    staffSheet.push([
+      users.get(r.userId) ?? '',
+      r.shifts,
+      r.orders,
+      money(r.sales),
+      r.orders ? money(Math.round(r.sales / r.orders)) : null,
+      money(r.manual),
+      r.manualCount,
+      money(r.cancelAmount),
+      r.cancels,
+      money(r.drawerOver),
+      money(r.drawerShort),
+    ])
+
   // ===== العروض =====
   const offers: Cell[][] = [['العرض', 'كم انباع', 'المبيعات']]
   for (const o of report.offers) offers.push([o.name, o.qty, money(o.revenue)])
@@ -185,6 +202,7 @@ export async function buildWorkbook() {
   XLSX.utils.book_append_sheet(wb, sheetFrom(days, [12, 8, 8, 10, 10, 10, 12, 12, 10, 8, 8, 12, 10, 10, 12, 10, 10, 12, 18, 8, 14]), 'أيام الشغل')
   XLSX.utils.book_append_sheet(wb, sheetFrom(drawer, [16, 14, 8, 10, 10, 10]), 'فروقات الدرج')
   XLSX.utils.book_append_sheet(wb, sheetFrom(items, [24, 10, 12, 12, 12, 10]), 'الأصناف')
+  XLSX.utils.book_append_sheet(wb, sheetFrom(staffSheet, [14, 8, 8, 12, 12, 12, 10, 12, 10, 12, 12]), 'أداء الموظفين')
   XLSX.utils.book_append_sheet(wb, sheetFrom(offers, [20, 10, 12]), 'العروض')
   XLSX.utils.book_append_sheet(wb, sheetFrom(hours, [10, 10, 12]), 'الساعات')
   XLSX.utils.book_append_sheet(wb, sheetFrom(expenses, [12, 8, 24, 10, 10, 12]), 'المصاريف')

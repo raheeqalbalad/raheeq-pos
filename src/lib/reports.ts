@@ -131,6 +131,25 @@ export interface HourRow {
   guests: number
 }
 
+/** أداء موظف بالفترة */
+export interface StaffRow {
+  userId: number
+  /** شيفتات فتحها */
+  shifts: number
+  /** الطلبات المدفوعة اللي فتحها، ومبيعاتها (بعد الخصومات) */
+  orders: number
+  sales: number
+  /** الخصومات اليدوية اللي عطاها */
+  manual: number
+  manualCount: number
+  /** إلغاءات وشيل أصناف (عدد وقيمة) */
+  cancels: number
+  cancelAmount: number
+  /** فروقات الدرج على شيفتاته */
+  drawerOver: number
+  drawerShort: number
+}
+
 export interface OfferRow {
   name: string
   qty: number
@@ -170,6 +189,8 @@ export interface Report {
   /** الكليك حسب الحساب */
   cliqSplit: CliqSplitRow[]
   manualDiscounts: ManualDiscountRow[]
+  /** أداء كل موظف */
+  staff: StaffRow[]
   /** كل عرض كم انباع (والعروض الحالية اللي ما انباعت كمان) */
   offers: OfferRow[]
   /** فروقات الدرج لكل موظف بكل شهر */
@@ -419,9 +440,53 @@ export async function buildReport(shifts: Shift[]): Promise<Report> {
     }))
     .sort((a, b) => b.at - a.at)
 
+  // أداء الموظفين
+  const staffMap = new Map<number, StaffRow>()
+  const staffRow = (userId: number) => {
+    const row = staffMap.get(userId) ?? {
+      userId,
+      shifts: 0,
+      orders: 0,
+      sales: 0,
+      manual: 0,
+      manualCount: 0,
+      cancels: 0,
+      cancelAmount: 0,
+      drawerOver: 0,
+      drawerShort: 0,
+    }
+    staffMap.set(userId, row)
+    return row
+  }
+  for (const d of days) {
+    const row = staffRow(d.shift.staffId)
+    row.shifts++
+    if (d.drawerDiff !== undefined) {
+      if (d.drawerDiff > 0) row.drawerOver += d.drawerDiff
+      else row.drawerShort -= d.drawerDiff
+    }
+  }
+  for (const o of paidOrders) {
+    const row = staffRow(o.staffId)
+    row.orders++
+    row.sales += orderDueById.get(o.id!) ?? 0
+    if (o.manualDiscount) {
+      const by = staffRow(o.manualDiscount.byUserId)
+      by.manual += o.manualDiscount.amount
+      by.manualCount++
+    }
+  }
+  for (const c of cancellations) {
+    const row = staffRow(c.userId)
+    row.cancels += c.voids + c.removals
+    row.cancelAmount += c.voidAmount + c.removalAmount
+  }
+  const staff = [...staffMap.values()].sort((a, b) => b.sales - a.sales)
+
   return {
     totals,
     cancellations,
+    staff,
     cliqSplit: splitCliq(counted, await getCliqSettings()),
     manualDiscounts,
     offers,
