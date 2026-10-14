@@ -2,7 +2,7 @@ import { db } from '../db/db'
 import type { Expense, ExpenseSource, Item, Order, OrderLine, OptionList, Shift } from '../db/types'
 import { resolveGroups } from './options'
 import { splitPicked } from './offers'
-import { expectedCashOf, expenseSource, withdrawnOf } from './shift'
+import { cliqInDrawerOf, expectedCashOf, expenseSource, withdrawnOf } from './shift'
 import { getCliqSettings, isStaffCliq, splitCliq, type CliqSplitRow } from './cliq'
 
 // «يوم الشغل» = شيفت (من فتحه لتسكيره)، مش اليوم بالتقويم.
@@ -63,8 +63,10 @@ export interface Totals {
   kids: number
   /** مبيعات الطلبات اللي إلها عدد زباين (لمعدّل الصرف للشخص) */
   guestSales: number
-  /** كليك على حساب الموظف (بيتحط مقابله كاش بالدرج) */
+  /** كليك على حساب الموظف (كله) */
   cliqStaff: number
+  /** منه: الموظف رح يحوّله لصاحب المحل (مش بالدرج) */
+  cliqTransfer: number
 }
 
 export interface DayRow extends Totals {
@@ -148,6 +150,8 @@ export interface StaffRow {
   /** فروقات الدرج على شيفتاته */
   drawerOver: number
   drawerShort: number
+  /** كليك على حسابه رح يحوّله لصاحب المحل */
+  cliqTransfer: number
 }
 
 export interface OfferRow {
@@ -219,6 +223,7 @@ const emptyTotals = (): Totals => ({
   kids: 0,
   guestSales: 0,
   cliqStaff: 0,
+  cliqTransfer: 0,
 })
 
 function addTotals(a: Totals, b: Totals) {
@@ -237,6 +242,7 @@ function addTotals(a: Totals, b: Totals) {
   a.kids += b.kids
   a.guestSales += b.guestSales
   a.cliqStaff += b.cliqStaff
+  a.cliqTransfer += b.cliqTransfer
 }
 
 /** كل الشيفتات، الأحدث أول. */
@@ -313,6 +319,7 @@ export async function buildReport(shifts: Shift[]): Promise<Report> {
   const days = [...byShift.values()]
   for (const d of days) {
     d.net = d.sales - d.expenses - d.outside
+    d.cliqTransfer = d.cliqStaff - cliqInDrawerOf(d.shift, d.cliqStaff)
     // فرق الدرج (للشيفتات المسكّرة): مصاريف الدرج بس، والكليك على حساب الموظف بيتحط كاش
     if (d.shift.closedAt && d.shift.countedCash !== undefined) {
       d.drawerDiff = d.shift.countedCash - expectedCashOf(d.shift, d)
@@ -454,6 +461,7 @@ export async function buildReport(shifts: Shift[]): Promise<Report> {
       cancelAmount: 0,
       drawerOver: 0,
       drawerShort: 0,
+      cliqTransfer: 0,
     }
     staffMap.set(userId, row)
     return row
@@ -461,6 +469,7 @@ export async function buildReport(shifts: Shift[]): Promise<Report> {
   for (const d of days) {
     const row = staffRow(d.shift.staffId)
     row.shifts++
+    row.cliqTransfer += d.cliqTransfer
     if (d.drawerDiff !== undefined) {
       if (d.drawerDiff > 0) row.drawerOver += d.drawerDiff
       else row.drawerShort -= d.drawerDiff

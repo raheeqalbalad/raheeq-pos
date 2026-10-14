@@ -231,6 +231,8 @@ export interface Shift {
   openingCash: number
   closedAt?: number
   closedBy?: number
+  /** الكليك اللي على حساب الموظف: كيف سلّمه (بيختار قبل عدّ الدرج) */
+  cliqSettle?: CliqSettle
   /** مهام الفتح والتسكير: مين علّم على كل مهمة ومتى */
   openChecks?: CheckMark[]
   closeChecks?: CheckMark[]
@@ -356,6 +358,18 @@ export interface CheckMark {
   taskId: string
   /** نص المهمة وقت التعليم (لو تغيّرت بعدين) */
   text: string
+  by: number
+  at: number
+}
+
+/**
+ * تسليم الكليك اللي على حساب الموظف:
+ * drawer = حط مقابله كاش بالدرج، transfer = رح يحوّله لصاحب المحل، split = جزء كاش بالدرج والباقي تحويل.
+ */
+export interface CliqSettle {
+  mode: 'drawer' | 'transfer' | 'split'
+  /** مع split: كم انحط كاش بالدرج */
+  inDrawer?: number
   by: number
   at: number
 }

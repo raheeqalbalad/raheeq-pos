@@ -40,6 +40,7 @@ export async function summaryText(shifts: Shift[]): Promise<string> {
   lines.push(`• كاش: ${formatJod(t.cash)}`)
   lines.push(`• كليك: ${formatJod(t.cliq)}`)
   for (const r of report.cliqSplit) lines.push(`   - ${r.name}${r.isStaff ? ' (على حساب الموظف)' : ''}: ${formatJod(r.amount)}`)
+  if (t.cliqTransfer) lines.push(`🔁 كليك رح يحوّله الموظف لصاحب المحل: ${formatJod(t.cliqTransfer)}`)
   if (t.loyalty || t.manual) {
     const parts = [t.loyalty ? `ولاء ${formatJod(t.loyalty)}` : '', t.manual ? `يدوية ${formatJod(t.manual)}` : ''].filter(Boolean)
     lines.push(`🏷️ الخصومات: ${parts.join(' · ')}`)

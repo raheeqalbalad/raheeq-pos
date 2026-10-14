@@ -63,7 +63,7 @@ function CliqForm({ initial }: { initial: CliqSettings }) {
     <section className="rounded-3xl bg-white/70 p-5 ring-1 ring-cream-200">
       <h2 className="mb-1 font-display text-xl text-green">حسابات الكليك</h2>
       <p className="mb-3 text-sm text-ink/60">
-        لما الموظف يختار كليك، بيختار على حساب مين. الكليك على حساب الموظف بيحط مقابله كاش بالدرج، فبينحسب ضمن المفروض بالدرج.
+        لما الموظف يختار كليك، بيختار على حساب مين. الكليك على حساب الموظف: بتسكير الشيفت بيقول إذا حط مقابله كاش بالدرج (بينحسب ضمن المفروض بالدرج) أو رح يحوّله إلك (بيطلع «لازم يحوّل» بالتقارير).
       </p>
       <div className="mb-4 flex flex-wrap gap-2">
         <button

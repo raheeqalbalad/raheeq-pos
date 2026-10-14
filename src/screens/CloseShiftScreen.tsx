@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db/db'
 import type { Shift } from '../db/types'
-import { closeShift, countDrawer, leftInDrawerOf, resetDrawerCount, shiftSummary, withdrawnOf, type ShiftSummary } from '../lib/shift'
+import { closeShift, countDrawer, leftInDrawerOf, resetDrawerCount, setCliqSettle, shiftSummary, withdrawnOf, type ShiftSummary } from '../lib/shift'
 import { formatJod, toFils } from '../lib/money'
 import { useSession } from '../lib/session'
 import { useOwnerGate } from '../lib/useOwnerGate'
@@ -83,10 +83,16 @@ function SummaryCard({ shift, summary }: { shift: Shift; summary: ShiftSummary }
         <div className="divide-y divide-cream-200">
           <Row label="كاش البداية" value={shift.openingCash} />
           <Row label="مبيعات كاش" value={summary.cash} sign="+" />
-          {summary.cliqStaff > 0 && <Row label="كليك على حساب الموظف (بيتحط كاش بالدرج)" value={summary.cliqStaff} sign="+" />}
+          {summary.cliqInDrawer > 0 && <Row label="كليك على حساب الموظف (انحط مقابله كاش)" value={summary.cliqInDrawer} sign="+" />}
           <Row label="مصاريف الدرج" value={summary.expenses} sign="−" />
           <Row label="المفروض بالدرج" value={summary.expectedCash} strong />
         </div>
+        {summary.cliqTransfer > 0 && (
+          <div className="mt-3 flex items-baseline justify-between rounded-xl bg-gold/40 px-3 py-2 font-bold text-green">
+            <span>كليك رح يحوّله {opener?.name} لصاحب المحل</span>
+            <span className="num">{formatJod(summary.cliqTransfer)}</span>
+          </div>
+        )}
         <p className="mt-3 text-sm text-ink/60">
           فتحه {opener?.name} الساعة <span className="num">{timeLabel(shift.openedAt)}</span>
           {names && <> · باعوا: {names}</>}
@@ -158,8 +164,11 @@ function OpenOrdersWarning() {
 export default function CloseShiftScreen({ shift, onClosed }: { shift: Shift; onClosed: (id: number) => void }) {
   const { user } = useSession()
   const tasks = useLiveQuery(async () => (await getChecklists()).close, [])
-  if (!tasks) return null
+  // الكليك اللي على حساب الموظف (بدون ما نعرض المفروض قبل العدّ)
+  const cliqStaff = useLiveQuery(async () => (await shiftSummary(shift)).cliqStaff, [shift])
+  if (!tasks || cliqStaff === undefined) return null
   const checked = allChecked(tasks, shift.closeChecks)
+  const needsSettle = cliqStaff > 0 && !shift.cliqSettle && shift.countedCash === undefined
   return (
     <main className="flex-1 overflow-y-auto p-4">
       <div className="mx-auto flex max-w-4xl flex-col gap-4">
@@ -171,9 +180,91 @@ export default function CloseShiftScreen({ shift, onClosed }: { shift: Shift; on
             <ChecklistInput tasks={tasks} marks={shift.closeChecks ?? []} onToggle={(t) => toggleCloseCheck(shift.id!, t, user!.id!)} />
           </section>
         )}
-        {!checked ? null : shift.countedCash === undefined ? <BlindCount shift={shift} /> : <AfterCount shift={shift} onClosed={onClosed} />}
+        {checked && cliqStaff > 0 && shift.countedCash === undefined && (
+          <CliqSettleStep shift={shift} cliqStaff={cliqStaff} editing={needsSettle} />
+        )}
+        {!checked || needsSettle ? null : shift.countedCash === undefined ? (
+          <BlindCount shift={shift} />
+        ) : (
+          <AfterCount shift={shift} onClosed={onClosed} />
+        )}
       </div>
     </main>
+  )
+}
+
+const SETTLE_LABEL = { drawer: 'كله كاش بالدرج', transfer: 'كله تحويل لصاحب المحل', split: 'جزء كاش بالدرج والباقي تحويل' } as const
+
+/** الكليك اللي على حساب الموظف: حط مقابله كاش بالدرج، ولا رح يحوّله؟ (قبل عدّ الدرج) */
+function CliqSettleStep({ shift, cliqStaff, editing: mustChoose }: { shift: Shift; cliqStaff: number; editing: boolean }) {
+  const { user } = useSession()
+  const [editing, setEditing] = useState(mustChoose)
+  const [mode, setMode] = useState(shift.cliqSettle?.mode)
+  const [inDrawer, setInDrawer] = useState(shift.cliqSettle?.inDrawer !== undefined ? formatJod(shift.cliqSettle.inDrawer) : '')
+  const [error, setError] = useState('')
+  const inDrawerFils = toFils(inDrawer || 0)
+  const settled = shift.cliqSettle
+
+  async function save() {
+    if (!mode) return setError('اختار كيف سلّمت الكليك')
+    if (mode === 'split' && !(inDrawerFils > 0 && inDrawerFils < cliqStaff)) return setError('اكتب كم حطيت كاش بالدرج (أقل من مجموع الكليك)')
+    setError('')
+    try {
+      await setCliqSettle(shift.id!, { mode, ...(mode === 'split' ? { inDrawer: inDrawerFils } : {}), by: user!.id! })
+      setEditing(false)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'ما زبط')
+    }
+  }
+
+  if (!editing && settled)
+    return (
+      <section className="flex flex-wrap items-center gap-3 rounded-3xl bg-white/70 p-4 ring-1 ring-cream-200">
+        <span className="flex-1">
+          الكليك على حسابك <span className="num font-bold">{formatJod(cliqStaff)}</span>: <b className="text-green">{SETTLE_LABEL[settled.mode]}</b>
+          {settled.mode === 'split' && (
+            <>
+              {' '}
+              (<span className="num">{formatJod(settled.inDrawer ?? 0)}</span> بالدرج)
+            </>
+          )}
+        </span>
+        <button type="button" onClick={() => setEditing(true)} className="h-12 rounded-xl px-4 text-sm text-green ring-1 ring-green/20 active:bg-cream-200">
+          تعديل
+        </button>
+      </section>
+    )
+
+  const chip = (on: boolean) => `min-h-14 rounded-xl px-4 py-2 text-start font-bold ${on ? 'bg-green text-cream' : 'bg-cream-200 text-green active:bg-green-100'}`
+  return (
+    <section className="rounded-3xl bg-white/70 p-5 ring-2 ring-gold">
+      <h2 className="mb-1 font-display text-xl text-green">
+        الكليك اللي على حسابك: <span className="num">{formatJod(cliqStaff)}</span>
+      </h2>
+      <p className="mb-3 text-ink/60">كيف سلّمته؟ (قبل ما تعدّ الدرج)</p>
+      <div className="grid gap-2 sm:grid-cols-3">
+        {(['drawer', 'transfer', 'split'] as const).map((m) => (
+          <button key={m} type="button" onClick={() => setMode(m)} className={chip(mode === m)}>
+            {SETTLE_LABEL[m]}
+          </button>
+        ))}
+      </div>
+      {mode === 'split' && (
+        <label className="mt-3 block">
+          <span className="mb-1 block font-bold text-green">كم حطيت كاش بالدرج؟</span>
+          <MoneyInput value={inDrawer} onChange={setInDrawer} />
+          {inDrawerFils > 0 && inDrawerFils < cliqStaff && (
+            <span className="mt-1 block text-sm text-ink/60">
+              والباقي <span className="num font-bold">{formatJod(cliqStaff - inDrawerFils)}</span> تحويل لصاحب المحل
+            </span>
+          )}
+        </label>
+      )}
+      {error && <p className="mt-2 font-bold text-red-700">{error}</p>}
+      <button type="button" onClick={save} className="mt-4 h-14 w-full rounded-2xl bg-gold text-lg font-bold text-green active:bg-gold-600">
+        تمام، كمّل لعدّ الدرج
+      </button>
+    </section>
   )
 }
 

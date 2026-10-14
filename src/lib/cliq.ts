@@ -2,7 +2,7 @@ import { db } from '../db/db'
 import type { CliqSettings, Payment, Shift } from '../db/types'
 
 // حسابات الكليك: الكليك بينحوّل على حساب شخص معيّن. إذا انحوّل على حساب الموظف اللي فاتح
-// الشيفت، الموظف بيحط مقابله كاش بالدرج، فبينحسب ضمن المفروض بالدرج.
+// الشيفت، بتسكير الشيفت بيقول كيف سلّمه: كاش بالدرج (بينحسب ضمن المفروض بالدرج) أو تحويل لصاحب المحل.
 
 const KEY = 'cliq'
 export const STAFF_PREFIX = 'staff:'
@@ -34,7 +34,7 @@ export async function saveCliqSettings(s: CliqSettings) {
 export interface CliqChoice {
   key: string
   name: string
-  /** على حساب الموظف: بيحط مقابله كاش بالدرج */
+  /** على حساب الموظف: بيسلّمه كاش بالدرج أو تحويل (بتسكير الشيفت) */
   isStaff: boolean
 }
 

@@ -199,11 +199,17 @@ function ReportBody({ report, mode }: { report: Report; mode: Mode }) {
             <ul className="flex flex-col gap-1">
               {report.cliqSplit.map((r) => (
                 <li key={`${r.isStaff}${r.name}`} className="flex items-baseline justify-between rounded-lg px-3 py-1.5">
-                  <span>{r.isStaff ? `${r.name} (على حساب الموظف، بيتحط كاش بالدرج)` : r.name}</span>
+                  <span>{r.isStaff ? `${r.name} (على حساب الموظف)` : r.name}</span>
                   <span className="num">{formatJod(r.amount)}</span>
                 </li>
               ))}
             </ul>
+            {t.cliqTransfer > 0 && (
+              <p className="mt-2 flex items-baseline justify-between rounded-lg bg-gold/40 px-3 py-1.5 font-bold text-green">
+                <span>منه الموظفين رح يحوّلوه لصاحب المحل (مش بالدرج)</span>
+                <span className="num">{formatJod(t.cliqTransfer)}</span>
+              </p>
+            )}
           </div>
         )}
       </Card>
@@ -757,7 +763,7 @@ function DrawerByStaff({ rows, days }: { rows: Report['drawerByStaff']; days: Re
 function StaffPerformance({ rows }: { rows: Report['staff'] }) {
   const names = useLiveQuery(async () => new Map((await db.users.toArray()).map((u) => [u.id!, u.name])), [])
   if (!rows.length) return <p className="text-ink/50">ما في شغل بهالفترة</p>
-  const head = ['الموظف', 'شيفتات', 'طلبات', 'المبيعات', 'معدّل الفاتورة', 'خصومات يدوية', 'إلغاءات', 'فرق الدرج']
+  const head = ['الموظف', 'شيفتات', 'طلبات', 'المبيعات', 'معدّل الفاتورة', 'خصومات يدوية', 'إلغاءات', 'فرق الدرج', 'كليك لازم يحوّله']
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
@@ -814,6 +820,9 @@ function StaffPerformance({ rows }: { rows: Report['staff'] }) {
                   ) : (
                     <span className="text-ink/40">{r.shifts ? '✓' : '—'}</span>
                   )}
+                </td>
+                <td className="px-2 py-2 whitespace-nowrap">
+                  {r.cliqTransfer ? <span className="num font-bold text-green">{formatJod(r.cliqTransfer)}</span> : <span className="text-ink/40">—</span>}
                 </td>
               </tr>
             )
