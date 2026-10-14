@@ -11,6 +11,7 @@ const toLineOption = (g: OptionGroup, c: OptionChoice): LineOption => ({
   groupName: g.name,
   choice: c.name,
   priceDelta: c.priceDelta,
+  ...(c.costDelta ? { costDelta: c.costDelta } : {}),
 })
 
 /**

@@ -22,6 +22,8 @@ export interface OptionChoice {
   name: string
   /** فرق السعر بالـ fils (مثلًا تفاحتين نخلة +500) */
   priceDelta: number
+  /** فرق التكلفة بالـ fils (للخيارات اللي إلها فرق سعر) */
+  costDelta?: number
   /** عنوان مجموعة للعرض فقط (مثلًا «علكة» تحت نكهات الأرجيلة) */
   group?: string
 }
@@ -51,6 +53,8 @@ export interface Item {
   name: string
   description?: string
   price: number
+  /** تكلفة الوحدة بالـ fils (فاضي = بدون تكلفة، وما بينحسب بالربح) */
+  cost?: number
   active: boolean
   isSeasonal: boolean
   sort: number
@@ -123,6 +127,7 @@ export interface LineOption {
   groupName: string
   choice: string
   priceDelta: number
+  costDelta?: number
 }
 
 export interface OrderLine {
@@ -132,6 +137,8 @@ export interface OrderLine {
   nameSnapshot: string
   /** سعر الوحدة شامل فرق الخيارات، بالـ fils */
   priceSnapshot: number
+  /** تكلفة الوحدة وقت البيع (شامل الخيارات). فاضي إذا الصنف ما إله تكلفة وقتها */
+  costSnapshot?: number
   qty: number
   options: LineOption[]
   note?: string

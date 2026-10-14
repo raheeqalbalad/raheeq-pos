@@ -97,6 +97,7 @@ export async function addItem(
       itemId: item.id!,
       nameSnapshot: item.name,
       priceSnapshot: item.price + options.reduce((s, o) => s + o.priceDelta, 0),
+      ...(item.cost !== undefined ? { costSnapshot: item.cost + options.reduce((s, o) => s + (o.costDelta ?? 0), 0) } : {}),
       qty: 1,
       options,
       createdAt: Date.now(),

@@ -7,6 +7,8 @@ import {
   dayLabel,
   hourLabel,
   hourOrder,
+  itemMargin,
+  itemProfit,
   monthKey,
   monthLabel,
   wipeSalesData,
@@ -209,6 +211,10 @@ function ReportBody({ report, mode }: { report: Report; mode: Mode }) {
         </Card>
       </div>
 
+      <Card title="الأصناف: الأكثر مبيعًا مقابل الأكثر ربحًا">
+        <ItemProfits items={report.items} />
+      </Card>
+
       {mode === 'all' && report.months.length > 0 && (
         <Card title="دخل كل شهر">
           <Table
@@ -333,6 +339,82 @@ function TopItems({ items }: { items: ItemRow[] }) {
           {all ? 'أقل' : `كل الأصناف (${items.length})`}
         </button>
       )}
+    </div>
+  )
+}
+
+const pctText = (m: number | undefined) => (m === undefined ? '—' : `${Math.round(m * 100)}%`)
+
+/** الربح = السعر − التكلفة (قبل الخصومات والمصاريف). الصنف بدون تكلفة ما بينحسب. */
+function ItemProfits({ items }: { items: ItemRow[] }) {
+  const [all, setAll] = useState(false)
+  if (!items.length) return <p className="text-ink/50">ما في مبيعات</p>
+  const costed = items.filter((i) => i.costedQty > 0)
+  const noCost = items.filter((i) => i.costedQty === 0)
+  const partial = items.some((i) => i.costedQty > 0 && i.costedQty < i.qty)
+  const profit = costed.reduce((s, i) => s + itemProfit(i)!, 0)
+  const revenue = costed.reduce((s, i) => s + i.costedRevenue, 0)
+  const topSold = items.slice(0, 5)
+  const topProfit = [...costed].sort((a, b) => itemProfit(b)! - itemProfit(a)!).slice(0, 5)
+  const profitText = (i: ItemRow) => {
+    const p = itemProfit(i)
+    return p === undefined ? 'بدون تكلفة' : `${formatJod(p)}${i.costedQty < i.qty ? '*' : ''}`
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      {costed.length ? (
+        <p className="text-ink/70">
+          ربح الأصناف <span className="num font-display text-2xl text-green">{formatJod(profit)}</span> · نسبة الربح{' '}
+          <span className="num font-bold text-green">{pctText(revenue ? profit / revenue : undefined)}</span>
+          <span className="text-sm text-ink/50"> (قبل الخصومات والمصاريف)</span>
+        </p>
+      ) : (
+        <p className="rounded-xl bg-gold/30 px-4 py-2 text-sm">ما في أصناف إلها تكلفة. حط التكلفة من «المنيو» عشان يبيّن الربح.</p>
+      )}
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <h3 className="mb-1 text-sm font-bold text-green">الأكثر مبيعًا</h3>
+          <Table head={['الصنف', 'الكمية', 'الربح']} rows={topSold.map((i) => [i.name, String(i.qty), profitText(i)])} />
+        </div>
+        <div>
+          <h3 className="mb-1 text-sm font-bold text-green">الأكثر ربحًا</h3>
+          {topProfit.length ? (
+            <Table
+              head={['الصنف', 'الربح', 'النسبة']}
+              rows={topProfit.map((i) => [i.name, profitText(i), pctText(itemMargin(i))])}
+            />
+          ) : (
+            <p className="text-sm text-ink/50">—</p>
+          )}
+        </div>
+      </div>
+      {noCost.length > 0 && (
+        <p className="text-sm text-ink/60">
+          بدون تكلفة (ما انحسبوا بالربح): {noCost.map((i) => i.name).join('، ')}
+        </p>
+      )}
+      {partial && <p className="text-xs text-ink/50">* جزء من مبيعات الصنف ما إله تكلفة، فالربح من الجزء اللي إله تكلفة بس.</p>}
+      <div>
+        <button type="button" onClick={() => setAll((a) => !a)} className="h-12 rounded-xl px-4 text-green ring-1 ring-green/20 active:bg-cream-200">
+          {all ? 'خبّي الجدول' : `جدول كل الأصناف (${items.length})`}
+        </button>
+        {all && (
+          <div className="mt-2">
+            <Table
+              head={['الصنف', 'الكمية', 'المبيعات', 'التكلفة', 'الربح', 'النسبة']}
+              rows={items.map((i) => [
+                i.name,
+                String(i.qty),
+                formatJod(i.revenue),
+                i.costedQty ? formatJod(i.cost) : 'بدون تكلفة',
+                itemProfit(i) === undefined ? '—' : profitText(i),
+                pctText(itemMargin(i)),
+              ])}
+            />
+          </div>
+        )}
+      </div>
     </div>
   )
 }

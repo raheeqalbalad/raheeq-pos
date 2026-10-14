@@ -131,7 +131,18 @@ export default function MenuEditorScreen() {
                         .join(' — ')}
                     </div>
                   </button>
-                  <span className="num font-display text-lg text-green">{formatJod(item.price)}</span>
+                  <span className="flex flex-col items-end">
+                    <span className="num font-display text-lg text-green">{formatJod(item.price)}</span>
+                    <span className="text-xs text-ink/50">
+                      {item.cost === undefined ? (
+                        'بدون تكلفة'
+                      ) : (
+                        <>
+                          ربح <span className="num">{marginPct(item.price, item.cost)}%</span>
+                        </>
+                      )}
+                    </span>
+                  </span>
                   <button
                     type="button"
                     onClick={() => setItemActive(item.id!, !item.active)}
@@ -183,22 +194,36 @@ export default function MenuEditorScreen() {
   )
 }
 
+const marginPct = (price: number, cost: number) => (price ? Math.round(((price - cost) / price) * 100) : 0)
+
+function ProfitHint({ price, cost }: { price: number; cost?: number }) {
+  if (cost === undefined)
+    return <p className="-mt-2 text-sm text-ink/50">بدون تكلفة: الصنف ما بينحسب بتقرير الربح.</p>
+  const profit = price - cost
+  return (
+    <p className={`-mt-2 text-sm font-bold ${profit < 0 ? 'text-red-800' : 'text-green'}`}>
+      الربح بالوحدة <span className="num">{formatJod(profit)}</span> (<span className="num">{marginPct(price, cost)}%</span>)
+    </p>
+  )
+}
+
 /** المبلغ كنص للتعديل: 0 بيصير فاضي */
 const jodText = (fils: number) => (fils ? formatJod(fils) : '')
 
-type DraftChoice = OptionChoice & { deltaText: string }
+type DraftChoice = OptionChoice & { deltaText: string; costText: string }
 type DraftGroup = Omit<OptionGroup, 'choices'> & { choices: DraftChoice[] }
 
 const toDraftChoices = (choices: OptionChoice[]): DraftChoice[] =>
-  choices.map((c) => ({ ...c, deltaText: jodText(c.priceDelta) }))
+  choices.map((c) => ({ ...c, deltaText: jodText(c.priceDelta), costText: jodText(c.costDelta ?? 0) }))
 
 const toDraft = (groups: OptionGroup[]): DraftGroup[] => groups.map((g) => ({ ...g, choices: toDraftChoices(g.choices) }))
 
 const fromDraftChoices = (choices: DraftChoice[]): OptionChoice[] =>
-  choices.map(({ deltaText, ...c }) => ({
+  choices.map(({ deltaText, costText, ...c }) => ({
     ...c,
     name: c.name.trim(),
     priceDelta: toFils(deltaText || 0),
+    costDelta: toFils(costText || 0) || undefined,
     group: c.group?.trim() || undefined,
   }))
 
@@ -229,7 +254,7 @@ function ChoicesEditor({ choices, onChange }: { choices: DraftChoice[]; onChange
     <>
       <div className="flex flex-col gap-2">
         {choices.map((c, ci) => (
-          <div key={c.id} className="grid grid-cols-[1fr_5.5rem_3rem] gap-2 sm:grid-cols-[1fr_8rem_5.5rem_3rem]">
+          <div key={c.id} className="grid grid-cols-[1fr_4.5rem_4.5rem_3rem] gap-2 sm:grid-cols-[1fr_8rem_5.5rem_5.5rem_3rem]">
             <input value={c.name} onChange={(e) => update(ci, { name: e.target.value })} placeholder="الخيار" className={inputClass} />
             <input
               value={c.group ?? ''}
@@ -242,6 +267,14 @@ function ChoicesEditor({ choices, onChange }: { choices: DraftChoice[]; onChange
               value={c.deltaText}
               onChange={(e) => update(ci, { deltaText: e.target.value.replace(/[^\d.]/g, '') })}
               placeholder="+ سعر"
+              className={`${inputClass} num`}
+            />
+            <input
+              inputMode="decimal"
+              value={c.costText}
+              onChange={(e) => update(ci, { costText: e.target.value.replace(/[^\d.]/g, '') })}
+              placeholder="+ تكلفة"
+              aria-label="فرق التكلفة"
               className={`${inputClass} num`}
             />
             <button
@@ -257,7 +290,7 @@ function ChoicesEditor({ choices, onChange }: { choices: DraftChoice[]; onChange
       </div>
       <button
         type="button"
-        onClick={() => onChange([...choices, { id: newId(), name: '', priceDelta: 0, deltaText: '', group: choices.at(-1)?.group }])}
+        onClick={() => onChange([...choices, { id: newId(), name: '', priceDelta: 0, deltaText: '', costText: '', group: choices.at(-1)?.group }])}
         className="mt-2 h-12 rounded-xl px-4 text-green ring-1 ring-green/20 active:bg-cream-200"
       >
         + خيار
@@ -307,6 +340,7 @@ function ItemEditor({ initial, onClose }: { initial: Item; onClose: () => void }
   )
   const [name, setName] = useState(initial.name)
   const [price, setPrice] = useState(jodText(initial.price))
+  const [cost, setCost] = useState(initial.cost !== undefined ? formatJod(initial.cost) : '')
   const [description, setDescription] = useState(initial.description ?? '')
   const [categoryId, setCategoryId] = useState(initial.categoryId)
   const [isSeasonal, setIsSeasonal] = useState(initial.isSeasonal)
@@ -321,6 +355,7 @@ function ItemEditor({ initial, onClose }: { initial: Item; onClose: () => void }
   function validate(): string {
     if (!name.trim()) return 'اكتب اسم الصنف'
     if (price.trim() === '' || !(Number(price) >= 0)) return 'اكتب السعر'
+    if (cost.trim() !== '' && !(Number(cost) >= 0)) return 'التكلفة مش مزبوطة'
     for (const g of groups) {
       if (!g.name.trim()) return 'في مجموعة خيارات بدون اسم'
       if (!g.listId) {
@@ -338,6 +373,7 @@ function ItemEditor({ initial, onClose }: { initial: Item; onClose: () => void }
       ...initial,
       name: name.trim(),
       price: toFils(price),
+      cost: cost.trim() === '' ? undefined : toFils(cost),
       categoryId,
       isSeasonal,
       description: description.trim() || undefined,
@@ -353,7 +389,7 @@ function ItemEditor({ initial, onClose }: { initial: Item; onClose: () => void }
   return (
     <Sheet title={initial.id ? `تعديل «${initial.name}»` : 'صنف جديد'} onClose={onClose} wide>
       <div className="flex flex-col gap-4">
-        <div className="grid gap-3 sm:grid-cols-[1fr_9rem]">
+        <div className="grid gap-3 sm:grid-cols-[1fr_9rem_9rem]">
           <label className="flex flex-col gap-1">
             <span className="text-sm font-bold text-green">الاسم</span>
             <input value={name} onChange={(e) => setName(e.target.value)} className={`${inputClass} h-14 text-lg`} />
@@ -362,7 +398,12 @@ function ItemEditor({ initial, onClose }: { initial: Item; onClose: () => void }
             <span className="text-sm font-bold text-green">السعر (دينار)</span>
             <MoneyInput value={price} onChange={setPrice} />
           </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-sm font-bold text-green">التكلفة (اختياري)</span>
+            <MoneyInput value={cost} onChange={setCost} placeholder="بدون" />
+          </label>
         </div>
+        <ProfitHint price={toFils(price || 0)} cost={cost.trim() === '' ? undefined : toFils(cost)} />
         <label className="flex flex-col gap-1">
           <span className="text-sm font-bold text-green">الوصف (اختياري)</span>
           <input
@@ -393,7 +434,8 @@ function ItemEditor({ initial, onClose }: { initial: Item; onClose: () => void }
         <section className="rounded-2xl border border-cream-200 p-3">
           <h3 className="mb-1 font-bold text-green">الخيارات</h3>
           <p className="mb-3 text-xs text-ink/60">
-            لما الصنف إله خيارات، الموظف بيختار وحدة من كل مجموعة قبل ما ينضاف. «+ سعر» بينضاف على سعر الصنف.
+            لما الصنف إله خيارات، الموظف بيختار وحدة من كل مجموعة قبل ما ينضاف. «+ سعر» بينضاف على سعر الصنف، و«+ تكلفة» على
+            تكلفته.
           </p>
           <div className="flex flex-col gap-3">
             {groups.map((g, gi) => {

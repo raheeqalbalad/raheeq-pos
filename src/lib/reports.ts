@@ -1,5 +1,6 @@
 import { db } from '../db/db'
-import type { Expense, ExpenseSource, Order, OrderLine, Shift } from '../db/types'
+import type { Expense, ExpenseSource, Item, Order, OrderLine, OptionList, Shift } from '../db/types'
+import { resolveGroups } from './options'
 import { expectedCashOf, expenseSource, withdrawnOf } from './shift'
 import { getCliqSettings, isStaffCliq, splitCliq, type CliqSplitRow } from './cliq'
 
@@ -93,6 +94,29 @@ export interface ItemRow {
   name: string
   qty: number
   revenue: number
+  /** الكمية والمبيعات اللي إلها تكلفة (اللي ما إلها تكلفة ما بتنحسب بالربح) */
+  costedQty: number
+  costedRevenue: number
+  cost: number
+}
+
+/** ربح الصنف (من المبيعات اللي إلها تكلفة بس). undefined = بدون تكلفة */
+export const itemProfit = (i: ItemRow) => (i.costedQty ? i.costedRevenue - i.cost : undefined)
+export const itemMargin = (i: ItemRow) => (i.costedRevenue ? (i.costedRevenue - i.cost) / i.costedRevenue : undefined)
+
+/**
+ * تكلفة وحدة السطر: المحفوظة وقت البيع، وإذا السطر قديم (قبل ما تنحط التكلفة)
+ * بنحسبها من تكلفة الصنف وخياراته هلق.
+ */
+function lineUnitCost(l: OrderLine, items: Map<number, Item>, lists: Map<string, OptionList>): number | undefined {
+  if (l.costSnapshot !== undefined) return l.costSnapshot
+  const item = items.get(l.itemId)
+  if (item?.cost === undefined) return undefined
+  const groups = resolveGroups(item, lists)
+  return (
+    item.cost +
+    l.options.reduce((s, o) => s + (groups.find((g) => g.id === o.groupId)?.choices.find((c) => c.name === o.choice)?.costDelta ?? 0), 0)
+  )
 }
 
 export interface HourRow {
@@ -294,11 +318,20 @@ export async function buildReport(shifts: Shift[]): Promise<Report> {
   const months = [...monthMap.values()].sort((a, b) => b.key.localeCompare(a.key))
 
   // الأصناف (بالاسم وقت البيع، عشان لو تغيّر السعر أو الاسم بعدين)
+  const [menuItems, optionLists] = await Promise.all([db.items.toArray(), db.optionLists.toArray()])
+  const itemById = new Map(menuItems.map((i) => [i.id!, i]))
+  const listById = new Map(optionLists.map((l) => [l.id, l]))
   const itemMap = new Map<string, ItemRow>()
   for (const l of lines) {
-    const row = itemMap.get(l.nameSnapshot) ?? { name: l.nameSnapshot, qty: 0, revenue: 0 }
+    const row = itemMap.get(l.nameSnapshot) ?? { name: l.nameSnapshot, qty: 0, revenue: 0, costedQty: 0, costedRevenue: 0, cost: 0 }
     row.qty += l.qty
     row.revenue += l.qty * l.priceSnapshot
+    const unitCost = lineUnitCost(l, itemById, listById)
+    if (unitCost !== undefined) {
+      row.costedQty += l.qty
+      row.costedRevenue += l.qty * l.priceSnapshot
+      row.cost += l.qty * unitCost
+    }
     itemMap.set(l.nameSnapshot, row)
   }
   const items = [...itemMap.values()].sort((a, b) => b.qty - a.qty || b.revenue - a.revenue)

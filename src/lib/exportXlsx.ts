@@ -1,6 +1,6 @@
 import type { WorkSheet } from 'xlsx'
 import { db } from '../db/db'
-import { allShifts, buildReport, hourLabel, hourOrder, monthLabel, MONTHS } from './reports'
+import { allShifts, buildReport, hourLabel, hourOrder, itemMargin, itemProfit, monthLabel, MONTHS } from './reports'
 import { timeLabelOf } from './time'
 import { expenseSource, leftInDrawerOf } from './shift'
 
@@ -143,8 +143,19 @@ export async function buildWorkbook() {
     drawer.push([monthLabel(r.month), users.get(r.userId) ?? '', r.shifts, money(r.over), money(r.short), money(r.over - r.short, MONEY_SIGNED)])
 
   // ===== الأصناف =====
-  const items: Cell[][] = [['الصنف', 'الكمية', 'المبيعات']]
-  for (const i of report.items) items.push([i.name, i.qty, money(i.revenue)])
+  const items: Cell[][] = [['الصنف', 'الكمية', 'المبيعات', 'التكلفة', 'الربح', 'نسبة الربح']]
+  for (const i of report.items) {
+    const profit = itemProfit(i)
+    const margin = itemMargin(i)
+    items.push([
+      i.name,
+      i.qty,
+      money(i.revenue),
+      i.costedQty ? money(i.cost) : 'بدون تكلفة',
+      profit === undefined ? null : money(profit, MONEY_SIGNED),
+      margin === undefined ? null : `${Math.round(margin * 100)}%`,
+    ])
+  }
 
   // ===== الساعات =====
   const hours: Cell[][] = [['الساعة', 'طلبات', 'مبيعات']]
@@ -169,7 +180,7 @@ export async function buildWorkbook() {
   XLSX.utils.book_append_sheet(wb, wsHisab, 'الحساب')
   XLSX.utils.book_append_sheet(wb, sheetFrom(days, [12, 8, 8, 10, 10, 10, 12, 12, 10, 8, 8, 12, 10, 10, 12, 10, 10, 12, 18, 8, 14]), 'أيام الشغل')
   XLSX.utils.book_append_sheet(wb, sheetFrom(drawer, [16, 14, 8, 10, 10, 10]), 'فروقات الدرج')
-  XLSX.utils.book_append_sheet(wb, sheetFrom(items, [24, 10, 12]), 'الأصناف')
+  XLSX.utils.book_append_sheet(wb, sheetFrom(items, [24, 10, 12, 12, 12, 10]), 'الأصناف')
   XLSX.utils.book_append_sheet(wb, sheetFrom(hours, [10, 10, 12]), 'الساعات')
   XLSX.utils.book_append_sheet(wb, sheetFrom(expenses, [12, 8, 24, 10, 10, 12]), 'المصاريف')
   wb.Workbook = { Views: [{ RTL: true }] }
