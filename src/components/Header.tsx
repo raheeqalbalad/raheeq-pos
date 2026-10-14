@@ -1,4 +1,4 @@
-import { useSyncExternalStore, type ReactNode } from 'react'
+import { useEffect, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { useDeviceMode } from '../lib/cloud/useDeviceMode'
 import { syncState } from '../lib/cloud/sync'
 import { ROLE_LABEL, useSession } from '../lib/session'
@@ -39,6 +39,7 @@ export default function Header({
       )}
       <div className="flex shrink-0 items-center gap-3">
         <SyncBadge />
+        <Today />
         <div className="hidden text-left leading-tight sm:block">
           <div className="font-bold">{user!.name}</div>
           <div className="text-xs opacity-70">{ROLE_LABEL[user!.role]}</div>
@@ -68,5 +69,24 @@ function SyncBadge() {
     >
       {waiting ? (state.error ? '⏳ مش مرفوع' : '⏳ بيرفع') : '✓ مرفوع'}
     </span>
+  )
+}
+
+const WEEK_DAYS = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت']
+
+/** اليوم والتاريخ (بيتحدّث لحاله بعد نص الليل). */
+function Today() {
+  const [now, setNow] = useState(() => new Date())
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 60_000)
+    return () => clearInterval(t)
+  }, [])
+  return (
+    <div className="hidden border-e border-cream/20 pe-3 text-left leading-tight sm:block">
+      <div className="font-bold">{WEEK_DAYS[now.getDay()]}</div>
+      <div className="num text-xs opacity-70">
+        {now.getDate()}/{now.getMonth() + 1}/{now.getFullYear()}
+      </div>
+    </div>
   )
 }
