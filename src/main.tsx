@@ -8,6 +8,7 @@ import { ensureOffers } from './lib/offers'
 import { ensureCoalReset } from './lib/floor'
 import { cloudConfigured } from './lib/cloud/config'
 import { deviceMode } from './lib/cloud/device'
+import { installRemoteEdits } from './lib/cloud/remote'
 import { SessionProvider } from './lib/session'
 import { db } from './db/db'
 import { keepScreenOn } from './lib/wakeLock'
@@ -18,6 +19,9 @@ import UpdateManager from './components/UpdateManager'
 if (import.meta.env.DEV) Object.assign(window, { db })
 
 keepScreenOn()
+
+// قبل أول استعمال للقاعدة: الدخول بالإيميل من بعيد بيحوّل تعديلات المالك لطلبات للتابلت، وبيمنع غيرها
+installRemoteEdits()
 
 // نسخة تانية من التطبيق (أحدث) فتحت القاعدة: هاي النسخة القديمة بتعيد تحميل حالها
 db.on('versionchange', () => {
@@ -38,7 +42,12 @@ function Boot() {
     db.on('blocked', onBlocked)
     const slow = setTimeout(() => !done && setState('slow'), 10_000)
     // العروض بعد تعبئة المنيو الأولى (هاي بتشتغل بس إذا ما في أقسام)
-    Promise.all([seedIfEmpty().then(ensureOffers).then(ensureCoalReset), seedStockIfEmpty(), ensureGoal()])
+    // الدخول بالإيميل: القاعدة نسخة من السحابة، فما بنعبّي فيها إشي من عنا
+    const seeds =
+      deviceMode() === 'viewer'
+        ? []
+        : [seedIfEmpty().then(ensureOffers).then(ensureCoalReset), seedStockIfEmpty(), ensureGoal()]
+    Promise.all(seeds)
       .then(() => {
         done = true
         setState('ready')

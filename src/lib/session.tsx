@@ -48,6 +48,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   return <SessionContext.Provider value={{ user, login, logout }}>{children}</SessionContext.Provider>
 }
 
+/** الدخول بالإيميل من بعيد: المالك بيشتغل باسم مستخدم المالك من النسخة (بدون رمز). */
+export function RemoteSession({ user, onLogout, children }: { user: User; onLogout: () => void; children: ReactNode }) {
+  return <SessionContext.Provider value={{ user, login: () => undefined, logout: onLogout }}>{children}</SessionContext.Provider>
+}
+
 export function useSession() {
   const s = useContext(SessionContext)
   if (!s) throw new Error('useSession خارج SessionProvider')

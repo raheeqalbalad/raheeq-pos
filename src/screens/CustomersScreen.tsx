@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
+import { useRemote } from '../lib/cloud/useDeviceMode'
 import type { LoyaltySettings } from '../db/types'
 import {
   allCustomerStats,
@@ -20,6 +21,8 @@ const inputClass = 'h-12 min-w-0 rounded-xl bg-white px-3 ring-1 ring-cream-200 
 /** الزباين للمالك: الزيارات، آخر زيارة، الصرف، أكثر صنف، فلتر الغايبين، والتصدير للواتساب. */
 export default function CustomersScreen() {
   const stats = useLiveQuery(allCustomerStats, [])
+  // من بعيد: بيانات الزباين للقراءة (التعديل من التابلت)، وإعدادات الولاء بتتعدّل عادي
+  const remote = useRemote()
   const [search, setSearch] = useState('')
   const [absentOnly, setAbsentOnly] = useState(false)
   const [absentDays, setAbsentDays] = useState('14')
@@ -97,7 +100,11 @@ export default function CustomersScreen() {
             </thead>
             <tbody>
               {rows.map((r) => (
-                <tr key={r.customer.id} onClick={() => setEditing(r)} className="cursor-pointer border-b border-cream-200/60 active:bg-gold/20">
+                <tr
+                  key={r.customer.id}
+                  onClick={() => !remote && setEditing(r)}
+                  className={`border-b border-cream-200/60 ${remote ? '' : 'cursor-pointer active:bg-gold/20'}`}
+                >
                   <td className="px-3 py-2">
                     <div className="font-bold text-green">{r.customer.name || '—'}</div>
                     <div className="num text-xs text-ink/50">{r.customer.phone}</div>

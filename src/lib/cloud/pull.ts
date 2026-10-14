@@ -1,9 +1,11 @@
 import { db } from '../../db/db'
 import { cloud, cloudError, myRole } from './client'
-import { deviceMode, setDeviceMode } from './device'
+import { deviceMode, setDeviceMode, setViewerRole, viewerRole } from './device'
+import { checkSubmitted, clearRemoteQueues, flushOutbox, withCloudWrites } from './remote'
 
-// تلفون الشريك: بيسحب نسخة من السحابة لقاعدة محلية عشان نفس شاشة التقارير تشتغل عليها.
-// ما بيرفع إشي أبدًا (والـ RLS ما بيسمحله أصلًا). عند الخروج، النسخة بتنمسح من التلفون.
+// الدخول بالإيميل (تلفون أو لابتوب): بيسحب نسخة من السحابة لقاعدة محلية عشان نفس الشاشات تشتغل عليها.
+// ما بيرفع بيانات أبدًا (المالك بيبعت طلبات تعديل للمنيو والإعدادات بس، شوف remote.ts).
+// عند الخروج، النسخة بتنمسح من الجهاز.
 
 const PAGE = 1000
 const LAST_PULL = 'raheeq-last-pull'
@@ -38,7 +40,7 @@ async function fetchSince(since: string | null): Promise<CloudRecord[]> {
 async function apply(records: CloudRecord[], replace: boolean) {
   const known = new Map(db.tables.map((t) => [t.name, t]))
   const tables = db.tables
-  await db.transaction('rw', tables, async () => {
+  await withCloudWrites(() => db.transaction('rw', tables, async () => {
     if (replace) for (const t of tables) await t.clear()
     const byTable = new Map<string, CloudRecord[]>()
     for (const r of records) if (known.has(r.tbl)) byTable.set(r.tbl, [...(byTable.get(r.tbl) ?? []), r])
@@ -52,16 +54,16 @@ async function apply(records: CloudRecord[], replace: boolean) {
       if (live.length) await table.bulkPut(live.map((r) => r.data))
       if (gone.length) await table.bulkDelete(gone.map(toKey) as never[])
     }
-  })
+  }))
   const latest = records.reduce((m, r) => (r.updated_at > m ? r.updated_at : m), '')
   if (latest) localStorage.setItem(LAST_PULL, latest)
   localStorage.setItem(PULLED_AT, String(Date.now()))
 }
 
-/** دخول الشريك: بس على جهاز ما فيه بيع، وبحساب إله دور بجدول members. */
+/** دخول بالإيميل: بس على جهاز ما فيه بيع، وبحساب إله دور بجدول members. */
 export async function linkViewer(email: string, password: string) {
-  if (deviceMode() === 'cafe') throw new Error('هاد تابلت الكافيه. الشريك بيدخل من تلفونه')
-  if (deviceMode() !== 'viewer' && (await hasLocalSales())) throw new Error('هاد الجهاز فيه بيانات بيع، فما بينفع عليه دخول الشريك')
+  if (deviceMode() === 'cafe') throw new Error('هاد تابلت الكافيه. الدخول بالإيميل بيكون من تلفون أو لابتوب تاني')
+  if (deviceMode() !== 'viewer' && (await hasLocalSales())) throw new Error('هاد الجهاز فيه بيانات بيع، فما بينفع عليه الدخول بالإيميل')
   const { error } = await cloud().auth.signInWithPassword({ email: email.trim(), password })
   if (error) throw new Error(cloudError(error.message))
   try {
@@ -69,6 +71,7 @@ export async function linkViewer(email: string, password: string) {
     if (!role) throw new Error('هاد الحساب ما إله صلاحية (مش مضاف بجدول members)')
     const records = await fetchSince(null)
     await apply(records, true)
+    setViewerRole(role)
   } catch (e) {
     await cloud().auth.signOut()
     throw e
@@ -76,8 +79,12 @@ export async function linkViewer(email: string, password: string) {
   setDeviceMode('viewer')
 }
 
-/** بيجيب اللي تغيّر من آخر مرة. */
+/** بيبعت تعديلات المالك المستنية، وبيجيب اللي تغيّر من آخر مرة. */
 export async function refreshViewer() {
+  if (viewerRole() === 'owner') {
+    await flushOutbox()
+    await checkSubmitted()
+  }
   const since = localStorage.getItem(LAST_PULL)
   await apply(await fetchSince(since), false)
 }
@@ -88,12 +95,16 @@ export const lastPullAt = () => {
   return v ? Number(v) : undefined
 }
 
-/** خروج الشريك: النسخة بتنمسح من التلفون. */
+/** خروج: النسخة بتنمسح من الجهاز. */
 export async function signOutViewer() {
   if (deviceMode() !== 'viewer') return
-  await db.transaction('rw', db.tables, async () => {
-    for (const t of db.tables) await t.clear()
-  })
+  await withCloudWrites(() =>
+    db.transaction('rw', db.tables, async () => {
+      for (const t of db.tables) await t.clear()
+    }),
+  )
+  clearRemoteQueues()
+  setViewerRole(null)
   localStorage.removeItem(LAST_PULL)
   localStorage.removeItem(PULLED_AT)
   setDeviceMode(null)

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { cloudConfigured } from '../lib/cloud/config'
 import { getStatus, linkCafeDevice, resetUploadState, syncNow, unlinkCafeDevice, verifyUpload, type VerifyRow } from '../lib/cloud/sync'
-import { useDeviceMode } from '../screens/CloudScreens'
+import { useDeviceMode } from '../lib/cloud/useDeviceMode'
 import { timeLabelOf } from '../lib/time'
 import Sheet from './Sheet'
 
@@ -31,7 +31,7 @@ const TABLE_LABEL: Record<string, string> = {
 /** ربط التابلت بالسحابة (للمالك): حساب الكافيه، وحالة الرفع، والتأكد إنه كل إشي انرفع. */
 export default function CloudSection() {
   const mode = useDeviceMode()
-  if (!cloudConfigured) return null
+  if (!cloudConfigured || mode === 'viewer') return null
   return (
     <section className="rounded-3xl bg-white/70 p-5 ring-1 ring-cream-200">
       <h2 className="mb-1 font-display text-xl text-green">السحابة (Supabase)</h2>
@@ -65,7 +65,7 @@ function LinkForm() {
   return (
     <>
       <p className="mb-4 text-sm text-ink/60">
-        التابلت بيضل يحفظ كل إشي عنده أول، وبيرفع نسخة للسحابة لما يكون في نت (عشان التقارير للشريك والنسخة الاحتياطية). الموظفين بيضلّوا
+        التابلت بيضل يحفظ كل إشي عنده أول، وبيرفع نسخة للسحابة لما يكون في نت (عشان المتابعة من بعيد بالإيميل، والنسخة الاحتياطية). الموظفين بيضلّوا
         يدخلوا بالرمز. بتدخل حساب الكافيه هون مرة وحدة بس.
       </p>
       <div className="grid gap-3 sm:grid-cols-2">
@@ -241,7 +241,7 @@ function Linked() {
       {confirmUnlink && (
         <Sheet title="فصل التابلت عن السحابة؟" onClose={() => setConfirmUnlink(false)}>
           <p className="mb-4 text-ink/80">
-            التابلت بيضل يشتغل عادي وكل بياناته بتضل عليه، بس ما بيرفع إشي للسحابة لحد ما تربطه من جديد. الشريك بيضل يشوف آخر نسخة انرفعت.
+            التابلت بيضل يشتغل عادي وكل بياناته بتضل عليه، بس ما بيرفع إشي للسحابة لحد ما تربطه من جديد. اللي داخلين بالإيميل بيضلّوا يشوفوا آخر نسخة انرفعت.
           </p>
           <div className="grid grid-cols-2 gap-3">
             <button type="button" onClick={() => setConfirmUnlink(false)} className="h-14 rounded-xl bg-cream-200 font-bold text-green">

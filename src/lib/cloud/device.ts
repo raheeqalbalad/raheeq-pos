@@ -1,11 +1,13 @@
 // وضع الجهاز مع السحابة (محفوظ على الجهاز نفسه):
 //   - بدون: كل إشي محلي زي ما هو (الافتراضي).
 //   - cafe: التابلت المربوط بحساب الكافيه. بيحفظ محليًا أول، وبيرفع نسخة للسحابة.
-//   - viewer: تلفون الشريك. بيسحب نسخة من السحابة للتقارير بس، وما بيرفع إشي.
+//   - viewer: دخول بالإيميل من تلفون أو لابتوب. بيسحب نسخة من السحابة. المالك بيشوف كل إشي وبيبعت
+//     تعديلات المنيو والإعدادات للتابلت، والباقي تقارير بس.
 
 export type DeviceMode = 'cafe' | 'viewer'
 
 const MODE_KEY = 'raheeq-cloud-mode'
+const ROLE_KEY = 'raheeq-cloud-role'
 const DEVICE_KEY = 'raheeq-device-id'
 
 const read = (key: string) => {
@@ -44,3 +46,18 @@ export function deviceId(): string {
   }
   return id
 }
+
+export type ViewerRole = 'owner' | 'partner' | 'cafe'
+
+/** دور الحساب الداخل بالإيميل على هالجهاز */
+export function viewerRole(): ViewerRole | null {
+  const r = read(ROLE_KEY)
+  return r === 'owner' || r === 'partner' || r === 'cafe' ? r : null
+}
+
+export function setViewerRole(role: ViewerRole | null) {
+  write(ROLE_KEY, role)
+}
+
+/** المالك داخل من بعيد (بيشوف كل إشي وبيعدّل المنيو والإعدادات) */
+export const isRemoteOwner = () => deviceMode() === 'viewer' && viewerRole() === 'owner'

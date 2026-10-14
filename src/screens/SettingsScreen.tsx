@@ -163,7 +163,7 @@ function GoalForm({ initial }: { initial: GoalSettings }) {
   return (
     <section className="rounded-3xl bg-white/70 p-5 ring-1 ring-cream-200">
       <h2 className="mb-1 font-display text-xl text-green">هدف التوفير</h2>
-      <p className="mb-4 text-sm text-ink/60">العدّاد بيطلع بالتقارير للمالك والشريك. التوفير الفعلي كل شهر بيتسجّل من هناك.</p>
+      <p className="mb-4 text-sm text-ink/60">العدّاد بيطلع بالتقارير (هون ومن بعيد). التوفير الفعلي كل شهر بيتسجّل من هناك.</p>
       <div className="grid gap-3 sm:grid-cols-3">
         <label className="flex flex-col gap-1">
           <span className="text-sm font-bold text-green">الهدف (دينار)</span>

@@ -1,6 +1,6 @@
 import qrcode from 'qrcode-generator'
 import { cloudConfigured } from '../lib/cloud/config'
-import { useDeviceMode } from '../screens/CloudScreens'
+import { useDeviceMode } from '../lib/cloud/useDeviceMode'
 
 /** رابط صفحة المنيو العامة (على نفس موقع التطبيق) */
 export const menuUrl = () => `${location.origin}${import.meta.env.BASE_URL}menu/`
@@ -48,7 +48,7 @@ export default function MenuQrSection() {
         صفحة عامة فيها المنيو والأسعار والعروض، وبتتحدّث لحالها من المنيو هون (التابلت بينشرها مع المزامنة). الأصناف الموقفة ما بتطلع، وما فيها
         أي تكلفة أو مبيعات أو زباين.
       </p>
-      {mode !== 'cafe' && (
+      {mode === null && (
         <p className="mb-4 rounded-xl bg-gold/40 px-4 py-2 text-sm font-bold">
           الصفحة بتبيّن المنيو بعد ما تربط التابلت بالسحابة (فوق)، لأنه التابلت هو اللي بينشره.
         </p>

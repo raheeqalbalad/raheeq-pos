@@ -13,6 +13,7 @@ import Sheet from '../components/Sheet'
 import MoneyInput from '../components/MoneyInput'
 import PaymentsList, { METHOD_LABEL } from '../components/PaymentsList'
 import { ChecklistView } from '../components/Checklist'
+import { useRemote } from '../lib/cloud/useDeviceMode'
 
 type Mode = 'day' | 'range'
 
@@ -136,6 +137,7 @@ function DayLog({ shifts }: { shifts: Shift[] }) {
 
   const [selected, setSelected] = useState<Order | null>(null)
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null)
+  const remote = useRemote()
   if (!data) return null
   const t = data.totals
   const multi = shifts.length > 1
@@ -212,6 +214,7 @@ function DayLog({ shifts }: { shifts: Shift[] }) {
             <li key={e.id}>
               <button
                 type="button"
+                disabled={remote}
                 onClick={() => setEditingExpense(e)}
                 className="flex min-h-14 w-full items-center gap-3 rounded-xl bg-white px-3 py-2 text-start ring-1 ring-cream-200 active:bg-gold/30"
               >
@@ -289,6 +292,8 @@ function OrderEditor({ order: initial, onClose }: { order: Order; onClose: () =>
   const order = useLiveQuery(() => db.orders.get(initial.id!), [initial.id]) ?? initial
   const lines = useLiveQuery(() => db.orderLines.where('orderId').equals(initial.id!).sortBy('createdAt'), [initial.id])
   const [confirm, setConfirm] = useState<{ title: string; text: string; action: () => Promise<void> } | null>(null)
+  // من بعيد بتشوف بس: تعديل الأيام بيصير من التابلت
+  const remote = useRemote()
   const isVoid = order.status === 'void'
   const paidNote = order.status === 'paid' ? ' الطلب مدفوع، فالدفعة بتنقص بنفس المبلغ (والدخل والدرج بيتحدّثوا).' : ''
 
@@ -323,7 +328,7 @@ function OrderEditor({ order: initial, onClose }: { order: Order; onClose: () =>
               )}
             </span>
             <span className="num">{formatJod(l.priceSnapshot * l.qty)}</span>
-            {!isVoid && (
+            {!isVoid && !remote && (
               <span className="flex gap-1">
                 {l.qty > 1 && (
                   <button
@@ -365,19 +370,23 @@ function OrderEditor({ order: initial, onClose }: { order: Order; onClose: () =>
         <>
           <h3 className="mb-2 font-bold text-green">الدفعات</h3>
           <PaymentsList orderId={order.id!} />
-          <button
-            type="button"
-            onClick={() =>
-              setConfirm({
-                title: `إلغاء ${order.label}؟`,
-                text: 'الطلب بيضل بيومه بس ما بينحسب بالمبيعات، ودفعاته بتطلع من الدخل والدرج.',
-                action: () => voidOrderAudited(order, user!.id!),
-              })
-            }
-            className="mt-4 h-12 w-full rounded-xl font-medium text-red-800 ring-1 ring-red-800/30 active:bg-red-700/10"
-          >
-            إلغاء الطلب
-          </button>
+          {remote ? (
+            <p className="mt-4 rounded-xl bg-gold/30 px-4 py-2 text-center text-sm">تعديل الطلبات والإلغاء من التابلت بس.</p>
+          ) : (
+            <button
+              type="button"
+              onClick={() =>
+                setConfirm({
+                  title: `إلغاء ${order.label}؟`,
+                  text: 'الطلب بيضل بيومه بس ما بينحسب بالمبيعات، ودفعاته بتطلع من الدخل والدرج.',
+                  action: () => voidOrderAudited(order, user!.id!),
+                })
+              }
+              className="mt-4 h-12 w-full rounded-xl font-medium text-red-800 ring-1 ring-red-800/30 active:bg-red-700/10"
+            >
+              إلغاء الطلب
+            </button>
+          )}
         </>
       )}
 

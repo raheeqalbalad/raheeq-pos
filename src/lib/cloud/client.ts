@@ -17,7 +17,7 @@ export function cloud(): SupabaseClient {
   return client
 }
 
-export type CloudRole = 'cafe' | 'partner'
+export type CloudRole = 'cafe' | 'owner' | 'partner'
 
 /** دور الحساب الداخل (من جدول members). */
 export async function myRole(): Promise<CloudRole | null> {

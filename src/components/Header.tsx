@@ -1,4 +1,6 @@
-import type { ReactNode } from 'react'
+import { useSyncExternalStore, type ReactNode } from 'react'
+import { useDeviceMode } from '../lib/cloud/useDeviceMode'
+import { syncState } from '../lib/cloud/sync'
 import { ROLE_LABEL, useSession } from '../lib/session'
 import Logo from './Logo'
 
@@ -36,6 +38,7 @@ export default function Header({
         </div>
       )}
       <div className="flex shrink-0 items-center gap-3">
+        <SyncBadge />
         <div className="hidden text-left leading-tight sm:block">
           <div className="font-bold">{user!.name}</div>
           <div className="text-xs opacity-70">{ROLE_LABEL[user!.role]}</div>
@@ -49,5 +52,21 @@ export default function Header({
         </button>
       </div>
     </header>
+  )
+}
+
+/** على التابلت المربوط: ✓ كل إشي مرفوع، أو ⏳ في تغييرات مستنية رفع. */
+function SyncBadge() {
+  const mode = useDeviceMode()
+  const state = useSyncExternalStore(syncState.subscribe, syncState.get)
+  if (mode !== 'cafe') return null
+  const waiting = state.pending || !!state.error
+  return (
+    <span
+      title={state.error || (waiting ? 'في تغييرات مستنية رفع للسحابة' : 'كل إشي مرفوع للسحابة')}
+      className={`rounded-lg px-2 py-1 text-xs font-bold ${waiting ? 'bg-gold/20 text-gold' : 'bg-green-700 text-cream/80'}`}
+    >
+      {waiting ? (state.error ? '⏳ مش مرفوع' : '⏳ بيرفع') : '✓ مرفوع'}
+    </span>
   )
 }

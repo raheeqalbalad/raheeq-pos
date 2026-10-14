@@ -24,6 +24,7 @@ import { useSession } from '../lib/session'
 import { useOwnerGate } from '../lib/useOwnerGate'
 import Sheet from '../components/Sheet'
 import GoalCard from '../components/GoalCard'
+import { useRemote } from '../lib/cloud/useDeviceMode'
 import ShareSummaryButton from '../components/ShareSummaryButton'
 
 // ألوان الرسوم (متأكد منها بفاحص عمى الألوان، ومعها أسماء ظاهرة دايمًا)
@@ -528,8 +529,10 @@ function Table({ head, rows }: { head: string[]; rows: string[][] }) {
 }
 
 /** تصدير الإكسل (للمالك والشريك)، ومسح بيانات التجربة (للمالك بس). */
-function Tools({ canWipe }: { canWipe: boolean }) {
+function Tools({ canWipe: ownerHere }: { canWipe: boolean }) {
   const { requireOwner, sheet } = useOwnerGate()
+  // من بعيد: التصدير بس (المسح والاسترجاع على التابلت)
+  const canWipe = ownerHere && !useRemote()
   const [busy, setBusy] = useState(false)
   const [confirmWipe, setConfirmWipe] = useState(false)
   const [message, setMessage] = useState('')

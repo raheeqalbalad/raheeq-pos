@@ -3,6 +3,7 @@ import { db } from '../../db/db'
 import { cloud, cloudError, myRole } from './client'
 import { deviceId, deviceMode, setDeviceMode } from './device'
 import { buildPublicMenu } from './publicMenu'
+import { REMOTE_EDITABLE } from './remote'
 
 // المزامنة على التابلت (حساب الكافيه): الحفظ المحلي ما بيتغيّر أبدًا، والسحابة نسخة عنه.
 // كل دورة: بنقرا الجداول اللي تغيّرت، بنقارن بصمة كل سجل باللي انرفع قبل، وبنرفع بس الجديد والمعدّل
@@ -91,8 +92,37 @@ function watchChanges() {
       const [, , dbName, tbl] = key.split('/')
       if (dbName === db.name && tbl) dirty.add(tbl)
     }
-    schedule(5_000)
+    notifyState()
+    // كل تغيير بيطلع تقريبًا فورًا (ثانية لنجمّع الكبسات ورا بعض)
+    schedule(1_000)
   })
+}
+
+// ===== مؤشر التابلت: ✓ مرفوع أو ⏳ مستني =====
+
+export interface SyncState {
+  pending: boolean
+  error: string
+}
+
+const stateListeners = new Set<() => void>()
+let state: SyncState = { pending: false, error: '' }
+let lastError = ''
+
+function notifyState() {
+  const next = { pending: dirty.size > 0 || !!running, error: lastError }
+  if (next.pending !== state.pending || next.error !== state.error) {
+    state = next
+    for (const l of stateListeners) l()
+  }
+}
+
+export const syncState = {
+  subscribe(l: () => void) {
+    stateListeners.add(l)
+    return () => stateListeners.delete(l)
+  },
+  get: () => state,
 }
 
 async function upsert(rows: { tbl: string; id: string; data: unknown; deleted: boolean }[]) {
@@ -161,8 +191,11 @@ export function syncNow(): Promise<void> {
   if (deviceMode() !== 'cafe') return Promise.resolve()
   running ??= (async () => {
     await setStatus({ running: true })
+    // (ما في return قبل أول await، فـ finally بيشتغل بعد ما running يتسجّل)
     try {
+      await applyRemoteEdits()
       const n = await pushOnce()
+      lastError = ''
       await setStatus({
         running: false,
         lastSyncAt: Date.now(),
@@ -171,12 +204,54 @@ export function syncNow(): Promise<void> {
         ...(n ? { lastUploadAt: Date.now(), lastUploaded: n } : {}),
       })
     } catch (e) {
-      await setStatus({ running: false, error: e instanceof Error ? cloudError(e.message) : String(e), errorAt: Date.now() })
+      lastError = e instanceof Error ? cloudError(e.message) : String(e)
+      await setStatus({ running: false, error: lastError, errorAt: Date.now() })
     } finally {
       running = null
+      notifyState()
     }
   })()
+  notifyState()
   return running
+}
+
+/**
+ * طلبات التعديل اللي بعتها المالك من بعيد (المنيو والأسعار والإعدادات): التابلت بيطبّقها عنده،
+ * والرفع العادي بيرجّعها للسحابة. التطبيق آمن يتكرر لو انقطع النت بالنص.
+ */
+async function applyRemoteEdits() {
+  const { data, error } = await cloud()
+    .from('remote_edits')
+    .select('id,tbl,rec_id,data,deleted')
+    .is('applied_at', null)
+    .order('id')
+    .limit(500)
+  if (error) {
+    // التحديث ٢ لسا ما انلصق بـ Supabase: المزامنة العادية بتكمّل
+    if (/remote_edits|schema cache/i.test(error.message)) return
+    throw new Error(cloudError(error.message))
+  }
+  const edits = (data ?? []) as { id: number; tbl: string; rec_id: string; data: Record<string, unknown> | null; deleted: boolean }[]
+  if (!edits.length) return
+  const tables = new Map(db.tables.map((t) => [t.name, t]))
+  await db.transaction('rw', [...REMOTE_EDITABLE].map((n) => tables.get(n)!), async () => {
+    for (const e of edits) {
+      const table = tables.get(e.tbl)
+      if (!table || !REMOTE_EDITABLE.has(e.tbl)) continue
+      const keyPath = table.schema.primKey.keyPath as string
+      const key = table.schema.primKey.auto ? Number(e.rec_id) : e.rec_id
+      if (e.deleted) await table.delete(key)
+      else if (e.data && String(e.data[keyPath]) === e.rec_id) await table.put(e.data)
+    }
+  })
+  const { error: markError } = await cloud()
+    .from('remote_edits')
+    .update({ applied_at: new Date().toISOString() })
+    .in(
+      'id',
+      edits.map((e) => e.id),
+    )
+  if (markError) throw new Error(cloudError(markError.message))
 }
 
 function schedule(ms: number) {
@@ -192,9 +267,8 @@ export function startSync() {
   started = true
   watchChanges()
   window.addEventListener('online', () => schedule(1_000))
-  setInterval(() => {
-    if (dirty.size) void syncNow()
-  }, 60_000)
+  // كل 30 ثانية: بيرفع اللي فات، وبيجيب تعديلات المالك من بعيد
+  setInterval(() => void syncNow(), 30_000)
   schedule(2_000)
 }
 

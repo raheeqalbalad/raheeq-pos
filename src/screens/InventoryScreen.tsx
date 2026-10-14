@@ -15,6 +15,7 @@ import {
 import { dayLabel } from '../lib/reports'
 import { timeLabelOf } from '../lib/time'
 import { useSession } from '../lib/session'
+import { useRemote } from '../lib/cloud/useDeviceMode'
 import Sheet from '../components/Sheet'
 import MoneyInput from '../components/MoneyInput'
 import { formatJod, toFils } from '../lib/money'
@@ -49,6 +50,7 @@ function QtyInput({
 
 export default function InventoryScreen() {
   const { user } = useSession()
+  const remote = useRemote()
   const status = useLiveQuery(stockStatus, [])
   const history = useLiveQuery(countHistory, [])
   const recent = useLiveQuery(async () => {
@@ -74,24 +76,30 @@ export default function InventoryScreen() {
     <main className="flex-1 overflow-y-auto p-4">
       <div className="mx-auto flex max-w-5xl flex-col gap-4">
         <div className="flex flex-wrap items-center gap-3">
-          <button
-            type="button"
-            onClick={() => setCounting(true)}
-            className="h-14 rounded-2xl bg-gold px-6 text-lg font-bold text-green active:bg-gold-600"
-          >
-            جرد
-          </button>
-          <p className="flex-1 text-sm text-ink/60">
-            كل ما توصل بضاعة اكبس «استلام» عالصنف. وآخر الأسبوع اعمل «جرد» واكتب الموجود فعليًا.
-          </p>
-          {user?.role === 'owner' && (
-            <button
-              type="button"
-              onClick={() => setManaging(true)}
-              className="h-12 rounded-xl px-4 font-medium text-green ring-1 ring-green/20 active:bg-cream-200"
-            >
-              أصناف المخزون
-            </button>
+          {remote ? (
+            <p className="flex-1 rounded-xl bg-gold/30 px-4 py-2 text-sm">من بعيد بتشوف بس. الاستلام والجرد بيصيروا من التابلت.</p>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() => setCounting(true)}
+                className="h-14 rounded-2xl bg-gold px-6 text-lg font-bold text-green active:bg-gold-600"
+              >
+                جرد
+              </button>
+              <p className="flex-1 text-sm text-ink/60">
+                كل ما توصل بضاعة اكبس «استلام» عالصنف. وآخر الأسبوع اعمل «جرد» واكتب الموجود فعليًا.
+              </p>
+              {user?.role === 'owner' && (
+                <button
+                  type="button"
+                  onClick={() => setManaging(true)}
+                  className="h-12 rounded-xl px-4 font-medium text-green ring-1 ring-green/20 active:bg-cream-200"
+                >
+                  أصناف المخزون
+                </button>
+              )}
+            </>
           )}
         </div>
 
@@ -129,6 +137,7 @@ export default function InventoryScreen() {
               <button
                 type="button"
                 onClick={() => setReceiving(item)}
+                hidden={remote}
                 className="h-12 rounded-xl bg-green font-bold text-cream active:bg-green-700"
               >
                 + استلام
