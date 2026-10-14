@@ -1,6 +1,7 @@
 import { db } from '../db/db'
 import type { CafeTable, Item, LineOption, OrderLine, Payment, PaymentMethod } from '../db/types'
 import { getOpenShift } from './shift'
+import { logPaymentCorrection } from './audit'
 
 export type OrderTarget = { tableId: number; label: string } | { takeaway: true }
 
@@ -163,10 +164,10 @@ export async function voidOrder(orderId: number, byUserId: number, byOwner: bool
   })
 }
 
-/** تصحيح طريقة الدفع (كاش ↔ كليك). بيتسجّل مين صحّح ومتى. */
+/** تصحيح طريقة الدفع (كاش ↔ كليك). بيتسجّل مين صحّح ومتى، وبسجل التعديلات. */
 export async function correctPayment(payment: Payment, byUserId: number) {
   const to: PaymentMethod = payment.method === 'cash' ? 'cliq' : 'cash'
-  await db.transaction('rw', ['payments', 'paymentCorrections'], async () => {
+  await db.transaction('rw', ['payments', 'paymentCorrections', 'orders', 'auditLog'], async () => {
     await db.payments.update(payment.id!, { method: to })
     await db.paymentCorrections.add({
       paymentId: payment.id!,
@@ -176,6 +177,7 @@ export async function correctPayment(payment: Payment, byUserId: number) {
       byUserId,
       at: Date.now(),
     })
+    await logPaymentCorrection(payment, to, byUserId)
   })
 }
 

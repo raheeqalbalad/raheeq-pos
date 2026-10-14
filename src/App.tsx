@@ -9,6 +9,7 @@ import ReportsScreen from './screens/ReportsScreen'
 import InventoryScreen from './screens/InventoryScreen'
 import MenuEditorScreen from './screens/MenuEditorScreen'
 import UsersScreen from './screens/UsersScreen'
+import DayLogScreen from './screens/DayLogScreen'
 import TablesScreen, { type OpenRequest } from './screens/TablesScreen'
 import OrderScreen from './screens/OrderScreen'
 import OpenShiftScreen from './screens/OpenShiftScreen'
@@ -65,11 +66,12 @@ function SignedIn() {
 
   if (shift === undefined) return null
   if (shift === null) {
-    if (owner && view === 'reports')
+    if (owner && (view === 'reports' || view === 'daylog'))
       return (
         <div className="flex h-full flex-col">
-          <Header title="التقارير" onBack={() => setView('tables')} backLabel="→ فتح الشيفت" />
-          <ReportsScreen />
+          <Header title={view === 'reports' ? 'التقارير' : 'سجل الأيام'} onBack={() => setView('tables')} backLabel="→ فتح الشيفت" />
+          <ScreenNav view={view} onChange={setView} only={['reports', 'daylog']} />
+          {view === 'reports' ? <ReportsScreen /> : <DayLogScreen />}
         </div>
       )
     return <OpenShiftScreen onReports={owner ? () => setView('reports') : undefined} />
@@ -114,6 +116,7 @@ function SignedIn() {
       {view === 'stock' && <InventoryScreen />}
       {view === 'close' && <CloseShiftScreen shift={shift} onClosed={setJustClosed} />}
       {view === 'reports' && owner && <ReportsScreen />}
+      {view === 'daylog' && owner && <DayLogScreen />}
       {view === 'menu' && owner && <MenuEditorScreen />}
       {view === 'users' && owner && <UsersScreen />}
     </div>

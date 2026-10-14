@@ -102,7 +102,3 @@ export async function addExpense(amount: number, reason: string, staffId: number
     return (await db.expenses.add({ amount, reason: reason.trim(), staffId, shiftId: shift.id!, createdAt: Date.now(), source }))!
   })
 }
-
-export async function deleteExpense(id: number) {
-  await db.expenses.delete(id)
-}

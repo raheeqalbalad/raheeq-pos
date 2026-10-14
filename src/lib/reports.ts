@@ -241,7 +241,7 @@ export const hourLabel = (h: number) => `${String(h).padStart(2, '0')}:00`
  */
 export async function wipeSalesData() {
   const tables = db.tables.filter((t) =>
-    ['orders', 'orderLines', 'payments', 'paymentCorrections', 'shifts', 'expenses', 'stockMoves', 'stockCounts'].includes(
+    ['orders', 'orderLines', 'payments', 'paymentCorrections', 'shifts', 'expenses', 'stockMoves', 'stockCounts', 'auditLog'].includes(
       t.name,
     ),
   )

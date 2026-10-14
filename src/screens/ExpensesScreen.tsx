@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db/db'
 import type { ExpenseSource, Shift } from '../db/types'
-import { addExpense, deleteExpense, expenseSource } from '../lib/shift'
+import { addExpense, expenseSource } from '../lib/shift'
+import { deleteExpenseAudited } from '../lib/audit'
 import { formatJod, toFils } from '../lib/money'
 import { useSession } from '../lib/session'
 import { useOwnerGate } from '../lib/useOwnerGate'
@@ -138,7 +139,7 @@ export default function ExpensesScreen({ shift }: { shift: Shift }) {
                   type="button"
                   aria-label="احذف"
                   onClick={() =>
-                    requireOwner('حذف مصروف', () => deleteExpense(e.id!), <>{e.reason} · <span className="num">{formatJod(e.amount)}</span></>)
+                    requireOwner('حذف مصروف', (ownerId) => deleteExpenseAudited(e, ownerId), <>{e.reason} · <span className="num">{formatJod(e.amount)}</span></>)
                   }
                   className="size-12 rounded-xl text-red-800 active:bg-red-700/10"
                 >

@@ -1,5 +1,6 @@
 import Dexie, { type EntityTable } from 'dexie'
 import type {
+  AuditEntry,
   CafeTable,
   Category,
   Expense,
@@ -31,6 +32,7 @@ export const db = new Dexie('raheeq-pos') as Dexie & {
   stockMoves: EntityTable<StockMove, 'id'>
   stockCounts: EntityTable<StockCount, 'id'>
   optionLists: EntityTable<OptionList, 'id'>
+  auditLog: EntityTable<AuditEntry, 'id'>
 }
 
 // ملاحظة: `db.tables` محجوز بـ Dexie، عشان هيك الطاولات اسمها cafeTables.
@@ -80,3 +82,7 @@ db.version(5)
       )
     })
   })
+
+db.version(6).stores({
+  auditLog: '++id, at, shiftId, orderId',
+})

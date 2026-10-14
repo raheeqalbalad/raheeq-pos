@@ -83,6 +83,8 @@ export interface Order {
   staffId: number
   /** مين ألغى الطلب (إذا انلغى) */
   voidedBy?: number
+  /** وقت الإلغاء. إلغاء طلب مسكّر من سجل الأيام ما بيغيّر closedAt (عشان يضل بيومه) */
+  voidedAt?: number
 }
 
 export interface LineOption {
@@ -191,4 +193,22 @@ export interface StockCount {
   qty: number
   countedAt: number
   staffId: number
+}
+
+// ===== سجل التعديلات (مين عدّل شو ومتى، وشو كان قبل) =====
+
+export type AuditKind = 'line' | 'void' | 'payment' | 'expense-edit' | 'expense-delete'
+
+export interface AuditEntry {
+  id?: number
+  at: number
+  byUserId: number
+  kind: AuditKind
+  /** وصف قصير بالعربي للعرض */
+  summary: string
+  /** يوم الشغل اللي بيخصّه التعديل (عشان يبيّن بسجل ذاك اليوم) */
+  shiftId?: number
+  orderId?: number
+  before?: unknown
+  after?: unknown
 }
