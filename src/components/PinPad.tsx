@@ -47,7 +47,7 @@ export default function PinPad({
   }
 
   return (
-    <div className="flex flex-col items-center gap-6">
+    <div className="flex flex-col items-center gap-6 [@media(max-height:520px)]:gap-3">
       <p className={`h-5 text-sm ${error ? (dark ? 'text-gold' : 'text-red-700') : 'opacity-0'}`}>{errorText}</p>
       <div className="flex gap-4" dir="ltr" aria-label="الرمز">
         {Array.from({ length: PIN_LENGTH }, (_, i) => (
@@ -65,7 +65,7 @@ export default function PinPad({
             key={k}
             type="button"
             onClick={() => press(k)}
-            className={`num h-16 rounded-2xl text-3xl font-medium ${
+            className={`num h-16 rounded-2xl text-3xl font-medium [@media(max-height:520px)]:h-12 [@media(max-height:520px)]:text-2xl ${
               dark ? 'bg-green-700 active:bg-gold active:text-green' : 'bg-cream-200 text-green active:bg-gold'
             }`}
           >

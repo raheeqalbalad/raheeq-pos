@@ -10,7 +10,9 @@ export default defineConfig({
     react(),
     tailwindcss(),
     VitePWA({
-      registerType: 'autoUpdate',
+      // التحديث ما بيقاطع الشغل: بيستنى، وUpdateManager بيثبّته على شاشة الرمز أو بكبسة «حدّث هلق»
+      registerType: 'prompt',
+      injectRegister: false,
       includeAssets: ['favicon.ico', 'apple-touch-icon-180x180.png', 'icon.svg'],
       manifest: {
         name: 'رحيق البلد POS',

@@ -56,7 +56,7 @@ export default function SetupScreen() {
   }
 
   return (
-    <div className="flex min-h-full flex-col items-center justify-center gap-6 bg-green px-4 py-10 text-cream">
+    <div className="flex h-full flex-col items-center gap-6 overflow-y-auto bg-green px-4 py-8 text-cream">
       <Logo />
       <div className="w-full max-w-lg rounded-3xl bg-cream p-6 text-ink">
         <h1 className="mb-1 font-display text-2xl text-green">إعداد أول مرة</h1>

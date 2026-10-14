@@ -19,19 +19,27 @@ import Header from './components/Header'
 import ScreenNav, { type View } from './components/ScreenNav'
 
 export default function App() {
-  const { user, logout } = useSession()
-  // null = لسا بيحمّل، undefined = ما في شيفت مفتوح
-  const shift = useLiveQuery(async () => (await getOpenShift()) ?? null, [])
+  const { user } = useSession()
   const userCount = useLiveQuery(() => db.users.count(), [])
-  const [view, setView] = useState<View>('tables')
-  const [open, setOpen] = useState<OpenRequest | null>(null)
-  const [message, setMessage] = useState<string>()
-  const [justClosed, setJustClosed] = useState<number | null>(null)
 
   if (!user) {
     if (userCount === undefined) return null
     return userCount === 0 ? <SetupScreen /> : <LoginScreen />
   }
+  // key: كل دخول بيبلّش من الطاولات بحالة نظيفة (ما بيرجع لطلب أو شاشة من الجلسة اللي قبل)
+  return <SignedIn key={user.id} />
+}
+
+function SignedIn() {
+  const { user: currentUser, logout } = useSession()
+  const user = currentUser!
+  // null = ما في شيفت مفتوح، undefined = لسا بيحمّل
+  const shift = useLiveQuery(async () => (await getOpenShift()) ?? null, [])
+  const [view, setView] = useState<View>('tables')
+  const [open, setOpen] = useState<OpenRequest | null>(null)
+  const [message, setMessage] = useState<string>()
+  const [justClosed, setJustClosed] = useState<number | null>(null)
+
   const owner = user.role === 'owner'
 
   // الشريك بيشوف التقارير بس

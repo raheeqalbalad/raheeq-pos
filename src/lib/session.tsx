@@ -23,7 +23,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   })
   // المستخدم بيتحدّث لحاله (اسم أو صلاحية تغيّرت). إذا انوقف، بيطلع من الحساب.
   const stored = useLiveQuery(async () => (userId ? ((await db.users.get(userId)) ?? null) : null), [userId])
-  const user = stored?.active ? stored : null
+  // الخروج فوري: ما بنستنى الاستعلام يرجع (ولا بنعرض مستخدم تاني غير اللي داخل)
+  const user = userId !== null && stored?.id === userId && stored.active ? stored : null
 
   const login = (u: User) => {
     setUserId(u.id!)
@@ -43,7 +44,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  if (stored === undefined) return null
+  if (userId !== null && stored === undefined) return null
   return <SessionContext.Provider value={{ user, login, logout }}>{children}</SessionContext.Provider>
 }
 
