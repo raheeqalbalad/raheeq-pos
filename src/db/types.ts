@@ -116,6 +116,8 @@ export interface Order {
   manualDiscount?: ManualDiscount
   /** آخر مرة انضاف صنف (للطاولة الساكتة) */
   lastAddedAt?: number
+  /** عدد الزباين اللي المي التلقائية محسوبة عليه (عشان التعديل يكون بالفرق، ومرة وحدة بس) */
+  waterGuests?: number
   /** مؤقت فحم لكل أرجيلة بالطلب */
   coals?: CoalTimer[]
 }

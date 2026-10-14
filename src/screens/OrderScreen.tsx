@@ -27,7 +27,7 @@ import PaymentsList from '../components/PaymentsList'
 import { refreshLoyaltyDiscount } from '../lib/customers'
 import { refreshManualDiscount } from '../lib/discounts'
 import { useOwnerGate } from '../lib/useOwnerGate'
-import { adjustAutoWater } from '../lib/water'
+import { setGuestsWithWater } from '../lib/water'
 import CoalSheet, { useNow } from '../components/CoalSheet'
 import { coalDue, getFloorSettings } from '../lib/floor'
 
@@ -61,6 +61,7 @@ export default function OrderScreen({ orderId: initialId, target, title, onDone,
   const isTable = 'tableId' in target
   const [askGuests, setAskGuests] = useState(isTable && !initialId)
   const pendingGuests = useRef<Guests | undefined>(undefined)
+  const savingGuests = useRef(false)
   const { requireOwner, sheet: ownerSheet } = useOwnerGate()
   const [panelOpen, setPanelOpen] = useState(false)
   const [notice, setNotice] = useState('')
@@ -354,16 +355,21 @@ export default function OrderScreen({ orderId: initialId, target, title, onDone,
           onClose={() => setAskGuests(false)}
           onSave={async (g) => {
             setAskGuests(false)
-            const before = guestsTotal(order?.guests ?? pendingGuests.current)
-            pendingGuests.current = g
-            // المي التلقائية بعدد الزباين (بتفتح الطلب إذا لسا مش مفتوح)
-            if (!idRef.current && creating.current) await creating.current
-            const id = await adjustAutoWater(idRef.current, target, guestsTotal(g) - before, user!.id!)
-            if (id !== idRef.current) setOrderId(id)
-            if (id) {
-              await setOrderGuests(id, g)
-              await refreshLoyaltyDiscount(id)
-              await refreshManualDiscount(id)
+            // كبسة وحدة بس، حتى لو الشاشة بطيئة وانكبس «تم» مرتين
+            if (savingGuests.current) return
+            savingGuests.current = true
+            try {
+              pendingGuests.current = g
+              if (!idRef.current && creating.current) await creating.current
+              // عدد الزباين والمي التلقائية بعددهم (بيفتح الطلب إذا لسا مش مفتوح)
+              const id = await setGuestsWithWater(idRef.current, target, g, user!.id!)
+              if (id && id !== idRef.current) setOrderId(id)
+              if (id) {
+                await refreshLoyaltyDiscount(id)
+                await refreshManualDiscount(id)
+              }
+            } finally {
+              savingGuests.current = false
             }
           }}
         />

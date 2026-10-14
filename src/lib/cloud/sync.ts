@@ -87,11 +87,18 @@ function watchChanges() {
   if (watching) return
   watching = true
   Dexie.on('storagemutated', (parts) => {
+    let changed = false
     for (const key of Object.keys(parts)) {
-      // "idb://raheeq/orders/..." → orders
+      // "idb://raheeq-pos/orders/..." → orders
       const [, , dbName, tbl] = key.split('/')
-      if (dbName === db.name && tbl) dirty.add(tbl)
+      if (dbName === db.name && tbl) {
+        dirty.add(tbl)
+        changed = true
+      }
     }
+    // بس تغييرات قاعدة البيع: كتابة المزامنة على قاعدتها (الحالة والبصمات) ما لازم تصحّيها من جديد،
+    // وإلا بتصير حلقة كل ثانية
+    if (!changed) return
     notifyState()
     // كل تغيير بيطلع تقريبًا فورًا (ثانية لنجمّع الكبسات ورا بعض)
     schedule(1_000)

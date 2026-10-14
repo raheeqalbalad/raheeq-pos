@@ -6,6 +6,7 @@ import { seedIfEmpty, seedStockIfEmpty } from './db/seed'
 import { ensureGoal } from './lib/goal'
 import { ensureOffers } from './lib/offers'
 import { ensureCoalReset } from './lib/floor'
+import { cleanupExtraWater } from './lib/water'
 import { cloudConfigured } from './lib/cloud/config'
 import { deviceMode } from './lib/cloud/device'
 import { installRemoteEdits } from './lib/cloud/remote'
@@ -46,7 +47,7 @@ function Boot() {
     const seeds =
       deviceMode() === 'viewer'
         ? []
-        : [seedIfEmpty().then(ensureOffers).then(ensureCoalReset), seedStockIfEmpty(), ensureGoal()]
+        : [seedIfEmpty().then(ensureOffers).then(ensureCoalReset), seedStockIfEmpty(), ensureGoal(), cleanupExtraWater()]
     Promise.all(seeds)
       .then(() => {
         done = true
