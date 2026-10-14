@@ -9,6 +9,7 @@ import { useOwnerGate } from '../lib/useOwnerGate'
 import { allChecked, getChecklists, toggleCloseCheck } from '../lib/checklists'
 import { ChecklistInput, ChecklistView } from '../components/Checklist'
 import ShareSummaryButton from '../components/ShareSummaryButton'
+import { afterMidnightNote } from '../lib/businessDay'
 import { timeLabel } from '../components/PaymentsList'
 import MoneyInput from '../components/MoneyInput'
 import Sheet from '../components/Sheet'
@@ -443,6 +444,7 @@ export function ClosedShiftScreen({ shiftId, onDone }: { shiftId: number; onDone
         <div className="mx-auto flex max-w-4xl flex-col gap-4">
           <h1 className="font-display text-2xl text-green">
             تسكّر الشيفت <span className="num text-lg text-ink/50">{timeLabel(shift.openedAt)} – {timeLabel(shift.closedAt!)}</span>
+            {afterMidnightNote(shift) && <span className="ms-2 text-base text-ink/60">({afterMidnightNote(shift)})</span>}
           </h1>
           <section className="rounded-3xl bg-white/70 p-5 ring-1 ring-cream-200">
             <h2 className="mb-3 font-display text-xl text-green">تسليم الدرج</h2>

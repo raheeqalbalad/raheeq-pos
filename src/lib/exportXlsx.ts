@@ -2,6 +2,7 @@ import type { WorkSheet } from 'xlsx'
 import { db } from '../db/db'
 import { allShifts, buildReport, hourLabel, hourOrder, itemMargin, itemProfit, monthLabel, MONTHS } from './reports'
 import { timeLabelOf } from './time'
+import { afterMidnightNote, businessDayOf } from './businessDay'
 import { expenseSource, leftInDrawerOf } from './shift'
 
 // التصدير بيمشي مع أعمدة شيت الحسابات الشهري («الحساب»):
@@ -115,7 +116,7 @@ export async function buildWorkbook() {
     days.push([
       `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`,
       timeLabelOf(s.openedAt),
-      s.closedAt ? timeLabelOf(s.closedAt) : 'مفتوح',
+      s.closedAt ? `${timeLabelOf(s.closedAt)}${afterMidnightNote(s) ? ' (بعد نص الليل)' : ''}` : 'مفتوح',
       money(d.cash),
       money(d.cliq),
       money(d.sales),
@@ -185,9 +186,10 @@ export async function buildWorkbook() {
     hours.push([hourLabel(h.hour), h.orders, money(h.sales)])
 
   // ===== مصاريف الدرج =====
-  const expenses: Cell[][] = [['التاريخ', 'الوقت', 'السبب', 'من وين', 'المبلغ', 'الموظف']]
+  const expenses: Cell[][] = [['يوم الشغل', 'الوقت', 'السبب', 'من وين', 'المبلغ', 'الموظف']]
   for (const e of [...report.expenses].reverse()) {
-    const d = new Date(e.createdAt)
+    // يوم الشغل (يوم فتح الشيفت)، مش تاريخ الساعة
+    const d = new Date(shifts.find((x) => x.id === e.shiftId)?.openedAt ?? businessDayOf(shifts, e.createdAt))
     expenses.push([
       `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
       timeLabelOf(e.createdAt),

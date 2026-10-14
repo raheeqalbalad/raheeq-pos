@@ -15,6 +15,7 @@ import { db } from './db/db'
 import { keepScreenOn } from './lib/wakeLock'
 import { ErrorBoundary, RecoveryScreen } from './components/Recovery'
 import UpdateManager from './components/UpdateManager'
+import BatteryAlert from './components/BatteryAlert'
 
 // للتجربة وقت التطوير بس (ما بيدخل بنسخة النشر)
 if (import.meta.env.DEV) Object.assign(window, { db })
@@ -73,7 +74,13 @@ function Boot() {
   if (typeof state === 'object') return <RecoveryScreen title="ما قدر التطبيق يفتح" detail={state.error} />
   return (
     <SessionProvider>
-      <App />
+      {/* تنبيه البطارية فوق كل الشاشات، وبيدفش التطبيق لتحت بدل ما يغطّيه */}
+      <div className="flex h-full flex-col">
+        <BatteryAlert />
+        <div className="min-h-0 flex-1">
+          <App />
+        </div>
+      </div>
       <UpdateManager />
     </SessionProvider>
   )

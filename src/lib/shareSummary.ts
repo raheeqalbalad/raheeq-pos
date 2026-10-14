@@ -3,6 +3,7 @@ import type { Shift } from '../db/types'
 import { formatJod } from './money'
 import { buildReport, dayLabel } from './reports'
 import { timeLabelOf } from './time'
+import { afterMidnightNote } from './businessDay'
 
 // «شارك ملخص اليوم»: رسالة جاهزة بالعربي بتنفتح بواتساب (الموظف أو المالك بيختار لمين يبعتها).
 
@@ -26,7 +27,8 @@ export async function summaryText(shifts: Shift[]): Promise<string> {
 
   lines.push(single ? '☕ رحيق البلد — ملخص اليوم' : '☕ رحيق البلد — ملخص الفترة')
   if (single) {
-    lines.push(`📅 ${fullDate(first.openedAt)} (${timeLabelOf(first.openedAt)} – ${first.closedAt ? timeLabelOf(first.closedAt) : 'لسا مفتوح'})`)
+    const note = afterMidnightNote(first)
+    lines.push(`📅 يوم الشغل ${fullDate(first.openedAt)} (${timeLabelOf(first.openedAt)} – ${first.closedAt ? timeLabelOf(first.closedAt) : 'لسا مفتوح'})${note ? ` · ${note}` : ''}`)
   } else {
     lines.push(`📅 من ${fullDate(first.openedAt)} لـ ${fullDate(last.openedAt)} (${sorted.length} يوم شغل)`)
   }

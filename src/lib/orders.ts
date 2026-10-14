@@ -26,7 +26,10 @@ export function paymentsTotal(payments: Payment[]): number {
   return payments.reduce((sum, p) => sum + p.amount, 0)
 }
 
-function startOfToday(): number {
+/** بداية يوم الشغل: فتح الشيفت المفتوح (ترقيم التيك أواي ما بيرجع لـ 1 بعد نص الليل) */
+async function startOfBusinessDay(): Promise<number> {
+  const shift = await getOpenShift()
+  if (shift) return shift.openedAt
   const d = new Date()
   d.setHours(0, 0, 0, 0)
   return d.getTime()
@@ -34,7 +37,7 @@ function startOfToday(): number {
 
 /** بيرجع الطلب المفتوح على الطاولة، أو بيفتح واحد جديد. */
 export async function openOrder(target: OrderTarget, staffId: number): Promise<number> {
-  return db.transaction('rw', 'orders', async () => {
+  return db.transaction('rw', ['orders', 'shifts'], async () => {
     if ('tableId' in target) {
       const existing = await db.orders
         .where('tableId')
@@ -53,7 +56,7 @@ export async function openOrder(target: OrderTarget, staffId: number): Promise<n
     }
     const todayCount = await db.orders
       .where('openedAt')
-      .aboveOrEqual(startOfToday())
+      .aboveOrEqual(await startOfBusinessDay())
       .filter((o) => o.takeaway)
       .count()
     const takeawayNo = todayCount + 1

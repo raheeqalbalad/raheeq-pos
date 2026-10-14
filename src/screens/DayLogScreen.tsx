@@ -14,6 +14,7 @@ import MoneyInput from '../components/MoneyInput'
 import PaymentsList, { METHOD_LABEL } from '../components/PaymentsList'
 import { ChecklistView } from '../components/Checklist'
 import { useRemote } from '../lib/cloud/useDeviceMode'
+import { afterMidnightNote, businessDayOf } from '../lib/businessDay'
 import DeleteOrderButton from '../components/DeleteOrderButton'
 
 type Mode = 'day' | 'range'
@@ -74,6 +75,7 @@ export default function DayLogScreen() {
               {shifts.map((s) => (
                 <option key={s.id} value={s.id}>
                   {dayLabel(s.openedAt)} · {`⁦${timeLabelOf(s.openedAt)}–${s.closedAt ? timeLabelOf(s.closedAt) : 'مفتوح'}⁩`}
+                  {afterMidnightNote(s) && ` · ${afterMidnightNote(s)}`}
                 </option>
               ))}
             </select>
@@ -185,7 +187,7 @@ function DayLog({ shifts }: { shifts: Shift[] }) {
                 }`}
               >
                 <span className="w-24 shrink-0 text-xs text-ink/50">
-                  {multi && <span className="block">{dayLabel(order.closedAt!)}</span>}
+                  {multi && <span className="block">{dayLabel(businessDayOf(shifts, order.closedAt!))}</span>}
                   <span className="num">{timeLabelOf(order.closedAt!)}</span>
                 </span>
                 <span className="flex-1 font-bold text-green">
@@ -220,7 +222,7 @@ function DayLog({ shifts }: { shifts: Shift[] }) {
                 className="flex min-h-14 w-full items-center gap-3 rounded-xl bg-white px-3 py-2 text-start ring-1 ring-cream-200 active:bg-gold/30"
               >
                 <span className="w-24 shrink-0 text-xs text-ink/50">
-                  {multi && <span className="block">{dayLabel(e.createdAt)}</span>}
+                  {multi && <span className="block">{dayLabel(shifts.find((s) => s.id === e.shiftId)?.openedAt ?? e.createdAt)}</span>}
                   <span className="num">{timeLabelOf(e.createdAt)}</span>
                 </span>
                 <span className="flex-1">
@@ -244,7 +246,7 @@ function DayLog({ shifts }: { shifts: Shift[] }) {
           {data.audit.map((a) => (
             <li key={a.id} className="flex items-baseline gap-3 py-2 text-sm">
               <span className="w-28 shrink-0 text-xs text-ink/50">
-                {dayLabel(a.at)} <span className="num">{timeLabelOf(a.at)}</span>
+                {dayLabel(shifts.find((s) => s.id === a.shiftId)?.openedAt ?? a.at)} <span className="num">{timeLabelOf(a.at)}</span>
               </span>
               <span className="flex-1">{a.summary}</span>
               <span className="shrink-0 text-xs font-bold text-green">{data.names.get(a.byUserId)}</span>
@@ -292,6 +294,7 @@ function OrderEditor({ order: initial, onClose }: { order: Order; onClose: () =>
   const { user } = useSession()
   const order = useLiveQuery(() => db.orders.get(initial.id!), [initial.id]) ?? initial
   const lines = useLiveQuery(() => db.orderLines.where('orderId').equals(initial.id!).sortBy('createdAt'), [initial.id])
+  const allShiftsList = useLiveQuery(() => db.shifts.toArray(), [])
   const [confirm, setConfirm] = useState<{ title: string; text: string; action: () => Promise<void> } | null>(null)
   // من بعيد بتشوف بس: تعديل الأيام بيصير من التابلت
   const remote = useRemote()
@@ -308,7 +311,7 @@ function OrderEditor({ order: initial, onClose }: { order: Order; onClose: () =>
   return (
     <Sheet title={order.label} onClose={onClose} wide>
       <p className="mb-3 text-sm text-ink/60">
-        {dayLabel(order.closedAt ?? order.openedAt)} · فتح <span className="num">{timeLabelOf(order.openedAt)}</span>
+        {dayLabel(businessDayOf(allShiftsList ?? [], order.closedAt ?? order.openedAt))} · فتح <span className="num">{timeLabelOf(order.openedAt)}</span>
         {order.closedAt && (
           <>
             {' '}

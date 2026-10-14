@@ -25,6 +25,7 @@ import { useOwnerGate } from '../lib/useOwnerGate'
 import Sheet from '../components/Sheet'
 import GoalCard from '../components/GoalCard'
 import { useRemote } from '../lib/cloud/useDeviceMode'
+import { afterMidnightNote } from '../lib/businessDay'
 import ShareSummaryButton from '../components/ShareSummaryButton'
 
 // ألوان الرسوم (متأكد منها بفاحص عمى الألوان، ومعها أسماء ظاهرة دايمًا)
@@ -101,6 +102,7 @@ export default function ReportsScreen() {
               {shifts.map((s) => (
                 <option key={s.id} value={s.id}>
                   {dayLabel(s.openedAt)} · {s.closedAt ? ltr(`${timeLabelOf(s.openedAt)}–${timeLabelOf(s.closedAt)}`) : `${ltr(timeLabelOf(s.openedAt))} (مفتوح)`}
+                  {afterMidnightNote(s) && ` · ${afterMidnightNote(s)}`}
                 </option>
               ))}
             </select>
@@ -264,7 +266,7 @@ function ReportBody({ report, mode }: { report: Report; mode: Mode }) {
           <Table
             head={['اليوم', 'كاش', 'كليك', 'الدخل', 'مصاريف', 'الصافي', 'زباين', 'فرق الدرج', 'المسحوب']}
             rows={report.days.map((d) => [
-              `${dayLabel(d.shift.openedAt)}${d.shift.closedAt ? '' : ' (مفتوح)'}`,
+              `${dayLabel(d.shift.openedAt)}${d.shift.closedAt ? (afterMidnightNote(d.shift) ? ' (سكّر بعد نص الليل)' : '') : ' (مفتوح)'}`,
               formatJod(d.cash),
               formatJod(d.cliq),
               formatJod(d.sales),
@@ -903,7 +905,7 @@ function Discounts({ loyalty, manual, rows }: { loyalty: number; manual: number;
         <Table
           head={['اليوم', 'الطلب', 'الخصم', 'السبب', 'مين عطاه', 'لمين']}
           rows={rows.map((r) => [
-            `${dayLabel(r.at)} ${timeLabelOf(r.at)}`,
+            `${dayLabel(r.day)} ${timeLabelOf(r.at)}`,
             r.label,
             `${formatJod(r.amount)}${r.pct ? ` (${r.pct}%)` : ''}`,
             r.reason,

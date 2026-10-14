@@ -145,7 +145,8 @@ export async function loyaltyStatus(customerId: number, currentOrderId?: number)
 
 /** إحصائيات كل الزباين لشاشة الزباين. */
 export async function allCustomerStats(): Promise<CustomerStats[]> {
-  const [customers, settings] = await Promise.all([db.customers.toArray(), getLoyaltySettings()])
+  const [customers, settings, shifts] = await Promise.all([db.customers.toArray(), getLoyaltySettings(), db.shifts.toArray()])
+  const shiftOpened = new Map(shifts.map((s) => [s.id!, s.openedAt]))
   const paidMap = await paidOrdersOf(customers.map((c) => c.id!))
   const allPaid = [...paidMap.values()].flat()
   const lines = await db.orderLines.where('orderId').anyOf(allPaid.map((p) => p.order.id!)).toArray()
@@ -161,7 +162,10 @@ export async function allCustomerStats(): Promise<CustomerStats[]> {
     return {
       customer,
       visits,
-      lastVisit: paid.length ? Math.max(...paid.map((p) => p.order.closedAt!)) : undefined,
+      // آخر زيارة بيوم الشغل (يوم فتح الشيفت)، مش تاريخ الساعة
+      lastVisit: paid.length
+        ? Math.max(...paid.map((p) => (p.shiftId !== undefined ? (shiftOpened.get(p.shiftId) ?? p.order.closedAt!) : p.order.closedAt!)))
+        : undefined,
       spent: paid.reduce((s, p) => s + p.paid, 0),
       favorite,
       loyalty: { progress, eligible: settings.enabled && progress >= settings.visitsNeeded, settings },

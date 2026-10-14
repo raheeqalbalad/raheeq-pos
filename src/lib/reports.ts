@@ -163,6 +163,8 @@ export interface OfferRow {
 export interface ManualDiscountRow {
   label: string
   at: number
+  /** يوم الشغل (فتح الشيفت) */
+  day: number
   amount: number
   pct?: number
   reason: string
@@ -438,6 +440,7 @@ export async function buildReport(shifts: Shift[]): Promise<Report> {
     .map((o) => ({
       label: o.label,
       at: o.closedAt!,
+      day: shiftOf(o.closedAt!)?.openedAt ?? o.closedAt!,
       amount: o.manualDiscount!.amount,
       pct: o.manualDiscount!.pct,
       reason: o.manualDiscount!.reason,
