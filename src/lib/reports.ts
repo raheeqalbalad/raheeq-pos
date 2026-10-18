@@ -75,6 +75,8 @@ export interface DayRow extends Totals {
   drawerDiff?: number
   /** المسحوب من الدرج عند التسكير */
   withdrawn?: number
+  /** كم تعديل انعمل على هاليوم (سجل التعديلات) */
+  edits: number
 }
 
 /** فروقات الدرج لموظف بشهر (الفرق بينسجّل على الموظف اللي فاتح الشيفت) */
@@ -292,7 +294,8 @@ export async function buildReport(shifts: Shift[]): Promise<Report> {
   }
 
   // أيام الشغل
-  const byShift = new Map<number, DayRow>(shifts.map((s) => [s.id!, { shift: s, ...emptyTotals() }]))
+  const byShift = new Map<number, DayRow>(shifts.map((s) => [s.id!, { shift: s, ...emptyTotals(), edits: 0 }]))
+  for (const a of audit) if (a.shiftId && byShift.has(a.shiftId)) byShift.get(a.shiftId)!.edits++
   for (const p of counted) {
     const row = byShift.get(p.shiftId)!
     row[p.method] += p.amount

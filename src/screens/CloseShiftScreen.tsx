@@ -63,8 +63,6 @@ function SummaryCard({ shift, summary }: { shift: Shift; summary: ShiftSummary }
             <Row key={`${r.isStaff}${r.name}`} sub label={r.isStaff ? `${r.name} (على حساب الموظف)` : r.name} value={r.amount} />
           ))}
           <Row label="مجموع المبيعات" value={summary.sales} strong />
-          {summary.loyalty > 0 && <Row label="خصم ولاء (منقوص من المبيعات)" value={summary.loyalty} sign="−" />}
-          {summary.manual > 0 && <Row label="خصومات يدوية (منقوصة من المبيعات)" value={summary.manual} sign="−" />}
           <Row label="مصاريف الدرج" value={summary.expenses} sign="−" />
           {summary.outside > 0 && <Row label="مصاريف من برا الدرج" value={summary.outside} sign="−" />}
           <Row label="الصافي" value={summary.net} strong />
@@ -78,6 +76,18 @@ function SummaryCard({ shift, summary }: { shift: Shift; summary: ShiftSummary }
             </>
           )}
         </p>
+        {summary.loyalty + summary.manual > 0 && (
+          <p className="mt-1 text-sm text-ink/60">
+            مجموع الخصومات <span className="num font-bold text-green">{formatJod(summary.loyalty + summary.manual)}</span>
+            {summary.loyalty > 0 && summary.manual > 0 && (
+              <>
+                {' '}
+                (ولاء <span className="num">{formatJod(summary.loyalty)}</span> · يدوية <span className="num">{formatJod(summary.manual)}</span>)
+              </>
+            )}
+            {' '}— منقوصة أصلًا من المبيعات
+          </p>
+        )}
       </section>
       <section className="rounded-3xl bg-white/70 p-5 ring-1 ring-cream-200">
         <h2 className="mb-2 font-display text-xl text-green">الدرج</h2>

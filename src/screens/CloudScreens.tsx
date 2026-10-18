@@ -146,6 +146,7 @@ function RemoteHeader({ label, onLogout, live }: { label: string; onLogout: () =
           ) : (
             <span className="opacity-80">بيحدّث…</span>
           )}
+          {edits.error && <div className="font-bold text-gold">{edits.error}</div>}
           {pendingEdits > 0 && (
             <div className="font-bold text-gold">
               ⏳ <span className="num">{pendingEdits}</span> {edits.queued ? 'تعديل مستني نت' : 'تعديل بيوصل التابلت'}

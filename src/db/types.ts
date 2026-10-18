@@ -222,6 +222,8 @@ export interface PaymentCorrection {
   to: PaymentMethod
   byUserId: number
   at: number
+  /** نسخة مؤقتة على جهاز المالك من بعيد (لحد ما يوصل سطر التابلت) */
+  preview?: boolean
 }
 
 export interface Shift {
@@ -298,7 +300,7 @@ export interface StockCount {
 
 // ===== سجل التعديلات (مين عدّل شو ومتى، وشو كان قبل) =====
 
-export type AuditKind = 'line' | 'void' | 'payment' | 'expense-edit' | 'expense-delete' | 'discount' | 'recount' | 'delete'
+export type AuditKind = 'line' | 'void' | 'payment' | 'expense-edit' | 'expense-delete' | 'discount' | 'recount' | 'delete' | 'table'
 
 export interface AuditEntry {
   id?: number
@@ -310,12 +312,20 @@ export interface AuditEntry {
   /** يوم الشغل اللي بيخصّه التعديل (عشان يبيّن بسجل ذاك اليوم) */
   shiftId?: number
   orderId?: number
+  /** المصروف اللي تعدّل أو انحذف (عشان علامة «معدّل» جنبه) */
+  expenseId?: number
   /** قيمة اللي انشال أو انلغى بالـ fils (لتقرير الإلغاءات لكل موظف) */
   amount?: number
   /** مين وافق (رمز المالك)، إذا التعديل بده موافقة */
   approvedBy?: number
   before?: unknown
   after?: unknown
+  /** التعديل انعمل من بعيد (الدخول بالإيميل) والتابلت طبّقه */
+  remote?: boolean
+  /** رقم أمر التعديل من بعيد (عشان ما ينطبق مرتين) */
+  opId?: string
+  /** نسخة مؤقتة على جهاز المالك لحد ما يوصل سطر التابلت */
+  preview?: boolean
 }
 
 // ===== الزباين وكرت الولاء =====

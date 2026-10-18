@@ -3,7 +3,9 @@ import { db } from '../../db/db'
 import { cloud, cloudError, myRole } from './client'
 import { deviceId, deviceMode, setDeviceMode } from './device'
 import { buildPublicMenu } from './publicMenu'
-import { REMOTE_EDITABLE } from './remote'
+import { OP_TBL, REMOTE_EDITABLE } from './remote'
+import { applyOwnerEdit, type OwnerEdit } from '../ownerEdits'
+import { logError } from '../errorLog'
 
 // المزامنة على التابلت (حساب الكافيه): الحفظ المحلي ما بيتغيّر أبدًا، والسحابة نسخة عنه.
 // كل دورة: بنقرا الجداول اللي تغيّرت، بنقارن بصمة كل سجل باللي انرفع قبل، وبنرفع بس الجديد والمعدّل
@@ -274,25 +276,58 @@ async function applyRemoteEdits() {
     (e) => !done.has(e.id),
   )
   if (!edits.length) return
+  const rows = edits.filter((e) => e.tbl !== OP_TBL)
+  const ops = edits.filter((e) => e.tbl === OP_TBL)
   const tables = new Map(db.tables.map((t) => [t.name, t]))
-  await db.transaction('rw', [...REMOTE_EDITABLE].map((n) => tables.get(n)!), async () => {
-    for (const e of edits) {
-      const table = tables.get(e.tbl)
-      if (!table || !REMOTE_EDITABLE.has(e.tbl)) continue
-      const keyPath = table.schema.primKey.keyPath as string
-      const key = table.schema.primKey.auto ? Number(e.rec_id) : e.rec_id
-      const current = await table.get(key)
-      if (e.deleted) {
-        if (current) await table.delete(key)
-      } else if (e.data && String(e.data[keyPath]) === e.rec_id && JSON.stringify(current) !== JSON.stringify(e.data)) {
-        // بس إذا في تغيير فعلًا (كتابة نفس الإشي بتصحّي الشاشات والمزامنة على الفاضي)
-        await table.put(e.data)
+  if (rows.length)
+    await db.transaction('rw', [...REMOTE_EDITABLE].map((n) => tables.get(n)!), async () => {
+      for (const e of rows) {
+        const table = tables.get(e.tbl)
+        if (!table || !REMOTE_EDITABLE.has(e.tbl)) continue
+        const keyPath = table.schema.primKey.keyPath as string
+        const key = table.schema.primKey.auto ? Number(e.rec_id) : e.rec_id
+        const current = await table.get(key)
+        if (e.deleted) {
+          if (current) await table.delete(key)
+        } else if (e.data && String(e.data[keyPath]) === e.rec_id && JSON.stringify(current) !== JSON.stringify(e.data)) {
+          // بس إذا في تغيير فعلًا (كتابة نفس الإشي بتصحّي الشاشات والمزامنة على الفاضي)
+          await table.put(e.data)
+        }
       }
+    })
+  // تعديلات المالك على الحركات (مصاريف، طلبات، طاولات): بنفس دوال سجل التعديلات، وواحد واحد بالترتيب.
+  // التعديل اللي ما بيزبط (مثلًا الصنف انشال من قبل) بينعلّم مرفوض مع السبب، وما بيوقّف الباقي.
+  const rejected: { id: number; error: string }[] = []
+  for (const e of ops) {
+    const { by, at, ...edit } = (e.data ?? {}) as OwnerEdit & { by?: number; at?: number }
+    try {
+      await applyOwnerEdit(edit as OwnerEdit, await ownerIdFor(by), { opId: e.rec_id, at: at ?? Date.now() })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      rejected.push({ id: e.id, error: message })
+      logError(`تعديل من بعيد ما انطبق: ${message}`)
     }
-  })
+  }
   // انطبّقوا: بنحفظهم عنا أول، عشان لو التعليم بالسحابة فشل ما نرجع نطبّقهم كل ثانية
   await syncDb.meta.put({ key: APPLIED_KEY, value: [...done, ...edits.map((e) => e.id)] })
   await markApplied(edits.map((e) => e.id))
+  for (const r of rejected)
+    await cloud()
+      .from('remote_edits')
+      .update({ error: r.error })
+      .eq('id', r.id)
+      .then(
+        () => undefined,
+        () => undefined,
+      )
+}
+
+/** التعديل باسم المالك اللي بعته (ولو مش موجود بالتابلت، أول مالك) */
+async function ownerIdFor(by: number | undefined): Promise<number> {
+  const users = await db.users.toArray()
+  const owner = users.find((u) => u.id === by && u.role === 'owner') ?? users.find((u) => u.role === 'owner' && u.active)
+  if (!owner) throw new Error('ما في مالك بالتابلت')
+  return owner.id!
 }
 
 /** بيعلّم بالسحابة إنه التابلت طبّق هالتعديلات، وبيشيلهم من القائمة المحلية. */

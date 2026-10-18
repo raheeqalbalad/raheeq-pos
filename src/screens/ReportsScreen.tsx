@@ -153,8 +153,15 @@ function Card({ title, children }: { title: string; children: ReactNode }) {
 
 function ReportBody({ report, mode }: { report: Report; mode: Mode }) {
   const t = report.totals
+  const edits = report.days.reduce((n, d) => n + d.edits, 0)
   return (
     <>
+      {edits > 0 && (
+        <p className="rounded-2xl bg-gold/30 px-4 py-2 text-sm text-green">
+          <span className="rounded-md bg-gold/60 px-2 py-0.5 text-xs font-bold">معدّل</span> في <span className="num font-bold">{edits}</span> تعديل على{' '}
+          {mode === 'day' ? 'هاليوم' : 'هالفترة'}، والأرقام محسوبة بعده. التفاصيل بـ«سجل الأيام».
+        </p>
+      )}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Tile
           label="الدخل"
@@ -266,7 +273,7 @@ function ReportBody({ report, mode }: { report: Report; mode: Mode }) {
           <Table
             head={['اليوم', 'كاش', 'كليك', 'الدخل', 'مصاريف', 'الصافي', 'زباين', 'فرق الدرج', 'المسحوب']}
             rows={report.days.map((d) => [
-              `${dayLabel(d.shift.openedAt)}${d.shift.closedAt ? (afterMidnightNote(d.shift) ? ' (سكّر بعد نص الليل)' : '') : ' (مفتوح)'}`,
+              `${dayLabel(d.shift.openedAt)}${d.shift.closedAt ? (afterMidnightNote(d.shift) ? ' (سكّر بعد نص الليل)' : '') : ' (مفتوح)'}${d.edits ? ' · معدّل' : ''}`,
               formatJod(d.cash),
               formatJod(d.cliq),
               formatJod(d.sales),

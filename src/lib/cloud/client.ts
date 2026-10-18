@@ -34,6 +34,7 @@ export function cloudError(message: string): string {
   if (/email not confirmed/i.test(message)) return 'الإيميل مش مأكّد بـ Supabase'
   if (/failed to fetch|network|load failed|fetch/i.test(message)) return 'ما في اتصال بالسحابة (النت أو الرابط محجوب)'
   if (/could not find the table|schema cache/i.test(message)) return 'جداول السحابة لسا مش معمولة (لازم ينلصق ملف الـ SQL بـ Supabase)'
+  if (/remote_edits_tbl_check/i.test(message)) return 'لازم ينلصق ملف التحديث ٣ (003_owner_edits.sql) بـ Supabase عشان هالتعديل يوصل التابلت'
   if (/row-level security|permission denied/i.test(message)) return 'هاد الحساب ما إله صلاحية على هالإشي'
   if (/jwt|not signed in|auth session missing/i.test(message)) return 'انتهى الدخول، اطلع وادخل من جديد'
   return message

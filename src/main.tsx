@@ -2,7 +2,7 @@ import { StrictMode, useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App'
-import { seedIfEmpty, seedStockIfEmpty } from './db/seed'
+import { ensureMenuAdditions, seedIfEmpty, seedStockIfEmpty } from './db/seed'
 import { ensureGoal } from './lib/goal'
 import { ensureOffers } from './lib/offers'
 import { ensureCoalReset } from './lib/floor'
@@ -52,7 +52,7 @@ function Boot() {
     const seeds =
       deviceMode() === 'viewer'
         ? []
-        : [seedIfEmpty().then(ensureOffers).then(ensureCoalReset), seedStockIfEmpty(), ensureGoal(), cleanupExtraWater().then(backfillMissingWater)]
+        : [seedIfEmpty().then(ensureOffers).then(ensureCoalReset).then(ensureMenuAdditions), seedStockIfEmpty(), ensureGoal(), cleanupExtraWater().then(backfillMissingWater)]
     Promise.all(seeds)
       .then(() => {
         done = true

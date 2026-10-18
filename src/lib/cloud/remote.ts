@@ -4,13 +4,17 @@ import { cloud, cloudError } from './client'
 import { deviceMode, isRemoteOwner } from './device'
 
 // الدخول بالإيميل من بعيد (تلفون أو لابتوب): القاعدة المحلية هون نسخة من السحابة.
-// - المالك بيعدّل المنيو والأسعار والإعدادات بس. التعديل بيبيّن عنده فورًا، وبينبعت «طلب تعديل»
+// - المالك بيعدّل المنيو والأسعار والإعدادات. التعديل بيبيّن عنده فورًا، وبينبعت «طلب تعديل»
 //   للتابلت (جدول remote_edits)، والتابلت بيطبّقه عنده وبيرجع يرفعه.
-// - أي كتابة تانية (بيع، شيفت، مصاريف، زباين، مخزون...) ممنوعة من بعيد.
+// - تعديل المصاريف والطلبات المسكّرة والطاولات بينبعت كأمر (tbl = '_op')، شوف ownerEdits.ts.
+// - أي كتابة تانية (بيع، شيفت، زباين، مخزون...) ممنوعة من بعيد.
 // - إذا ما في نت، الطلبات بتستنى بالجهاز وبتنبعت لما يرجع.
 
 /** الجداول اللي المالك بيعدّلها من بعيد (لازم تطابق الـ check بجدول remote_edits) */
 export const REMOTE_EDITABLE = new Set(['categories', 'items', 'optionLists', 'settings'])
+
+/** أوامر تعديل الحركات (التابلت بيطبّقها بدوال سجل التعديلات) */
+export const OP_TBL = '_op'
 
 export const REMOTE_BLOCKED_MESSAGE = 'هاد بيتعدّل من التابلت بس'
 
@@ -61,6 +65,11 @@ function enqueue(edits: Edit[]) {
   scheduleFlush(300)
 }
 
+/** أمر تعديل حركة (مصروف، طلب مسكّر، طاولة) للتابلت */
+export function enqueueOp(opId: string, data: unknown) {
+  enqueue([{ tbl: OP_TBL, rec_id: opId, data, deleted: false }])
+}
+
 let flushing: Promise<void> | null = null
 let flushTimer: ReturnType<typeof setTimeout> | undefined
 let lastError = ''
@@ -97,14 +106,19 @@ async function sendOutbox() {
   }
 }
 
-/** بيشيك أي طلبات التابلت طبّقها. */
-export async function checkSubmitted() {
+/** بيشيك أي طلبات التابلت طبّقها. بيرجع true إذا التابلت رفض تعديل (فالنسخة لازم تنسحب من جديد). */
+export async function checkSubmitted(): Promise<boolean> {
   const ids = load<number>(SUBMITTED)
-  if (!ids.length) return
-  const { data, error } = await cloud().from('remote_edits').select('id,applied_at').in('id', ids)
+  if (!ids.length) return false
+  // * عشان عمود error (التحديث ٣) إذا لسا ما انضاف ما يكسّر الاستعلام
+  const { data, error } = await cloud().from('remote_edits').select('*').in('id', ids)
   if (error) throw new Error(cloudError(error.message))
-  const waiting = new Set((data ?? []).filter((r: { applied_at: string | null }) => !r.applied_at).map((r: { id: number }) => r.id))
+  const rows = (data ?? []) as { id: number; applied_at: string | null; error?: string | null }[]
+  const waiting = new Set(rows.filter((r) => !r.applied_at).map((r) => r.id))
+  const rejected = rows.filter((r) => r.applied_at && r.error)
+  if (rejected.length) lastError = `التابلت ما طبّق تعديل: ${rejected[rejected.length - 1].error}`
   save(SUBMITTED, ids.filter((id) => waiting.has(id)))
+  return rejected.length > 0
 }
 
 export function clearRemoteQueues() {
@@ -143,7 +157,7 @@ export const remoteEdits = {
 
 let lastId = 0
 /** رقم لسجل جديد من بعيد: كبير وما بيتكرر، عشان ما يتضارب مع أرقام التابلت */
-const remoteId = () => (lastId = Math.max(Date.now(), lastId + 1))
+export const remoteId = () => (lastId = Math.max(Date.now(), lastId + 1))
 
 function wrapTable(name: string, table: DBCoreTable): DBCoreTable {
   return {

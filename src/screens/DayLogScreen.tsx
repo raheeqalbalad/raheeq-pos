@@ -3,7 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db/db'
 import type { Expense, Order, OrderLine, Shift } from '../db/types'
 import { allShifts, buildReport, dayLabel } from '../lib/reports'
-import { deleteExpenseAudited, removeLineUnits, updateExpenseAudited, voidOrderAudited } from '../lib/audit'
+import { ownerEdit } from '../lib/ownerEdits'
 import { expenseSource } from '../lib/shift'
 import { orderDue, optionsLabel } from '../lib/orders'
 import { formatJod, toFils } from '../lib/money'
@@ -124,6 +124,7 @@ function DayLog({ shifts }: { shifts: Shift[] }) {
       db.payments.where('orderId').anyOf(orderIds).toArray(),
     ])
     const edited = new Set(audit.map((a) => a.orderId).filter(Boolean))
+    const editedExpenses = new Set(audit.map((a) => a.expenseId).filter(Boolean))
     return {
       totals: report.totals,
       rows: orders.map((o) => ({
@@ -132,7 +133,7 @@ function DayLog({ shifts }: { shifts: Shift[] }) {
         methods: [...new Set(payments.filter((p) => p.orderId === o.id).map((p) => METHOD_LABEL[p.method]))],
         edited: edited.has(o.id),
       })),
-      expenses,
+      expenses: expenses.map((e) => ({ ...e, edited: editedExpenses.has(e.id) })),
       audit: audit.sort((a, b) => b.at - a.at),
       names: new Map(users.map((u) => [u.id!, u.name])),
     }
@@ -217,7 +218,6 @@ function DayLog({ shifts }: { shifts: Shift[] }) {
             <li key={e.id}>
               <button
                 type="button"
-                disabled={remote}
                 onClick={() => setEditingExpense(e)}
                 className="flex min-h-14 w-full items-center gap-3 rounded-xl bg-white px-3 py-2 text-start ring-1 ring-cream-200 active:bg-gold/30"
               >
@@ -229,6 +229,7 @@ function DayLog({ shifts }: { shifts: Shift[] }) {
                   <span className="font-bold text-green">{e.reason}</span>
                   <span className="text-xs text-ink/50"> · {data.names.get(e.staffId)}</span>
                 </span>
+                {e.edited && <span className="rounded-md bg-gold/60 px-2 py-0.5 text-xs font-bold text-green">معدّل</span>}
                 {expenseSource(e) === 'outside' && (
                   <span className="rounded-md bg-gold/60 px-2 py-0.5 text-xs font-bold text-green">من برا الدرج</span>
                 )}
@@ -240,7 +241,10 @@ function DayLog({ shifts }: { shifts: Shift[] }) {
       </section>
 
       <section className="rounded-3xl bg-white/70 p-4 ring-1 ring-cream-200">
-        <h2 className="mb-3 font-display text-xl text-green">سجل التعديلات</h2>
+        <h2 className="mb-1 font-display text-xl text-green">سجل التعديلات</h2>
+        {remote && (
+          <p className="mb-3 text-sm text-ink/60">تعديلك بيبيّن عندك هلق، وبيوصل التابلت أول ما يتّصل (والأرقام والدرج بينحسبوا من جديد هناك).</p>
+        )}
         {!data.audit.length && <p className="text-ink/50">ما في تعديلات على هالأيام</p>}
         <ul className="flex flex-col divide-y divide-cream-200">
           {data.audit.map((a) => (
@@ -248,7 +252,11 @@ function DayLog({ shifts }: { shifts: Shift[] }) {
               <span className="w-28 shrink-0 text-xs text-ink/50">
                 {dayLabel(shifts.find((s) => s.id === a.shiftId)?.openedAt ?? a.at)} <span className="num">{timeLabelOf(a.at)}</span>
               </span>
-              <span className="flex-1">{a.summary}</span>
+              <span className="flex-1">
+                {a.summary}
+                {a.remote && <span className="ms-2 rounded-md bg-cream-200 px-1.5 py-0.5 text-xs text-green">من بعيد</span>}
+                {a.preview && <span className="ms-1 text-xs text-ink/50">⏳ بيوصل التابلت</span>}
+              </span>
               <span className="shrink-0 text-xs font-bold text-green">{data.names.get(a.byUserId)}</span>
             </li>
           ))}
@@ -296,7 +304,7 @@ function OrderEditor({ order: initial, onClose }: { order: Order; onClose: () =>
   const lines = useLiveQuery(() => db.orderLines.where('orderId').equals(initial.id!).sortBy('createdAt'), [initial.id])
   const allShiftsList = useLiveQuery(() => db.shifts.toArray(), [])
   const [confirm, setConfirm] = useState<{ title: string; text: string; action: () => Promise<void> } | null>(null)
-  // من بعيد بتشوف بس: تعديل الأيام بيصير من التابلت
+  // من بعيد: التعديل بينبعت للتابلت (الحذف النهائي من التابلت بس)
   const remote = useRemote()
   const isVoid = order.status === 'void'
   const paidNote = order.status === 'paid' ? ' الطلب مدفوع، فالدفعة بتنقص بنفس المبلغ (والدخل والدرج بيتحدّثوا).' : ''
@@ -305,7 +313,7 @@ function OrderEditor({ order: initial, onClose }: { order: Order; onClose: () =>
     setConfirm({
       title: units === l.qty ? `شيل «${l.nameSnapshot}»؟` : `نقّص «${l.nameSnapshot}»؟`,
       text: `رح ينشال ${units}× ${l.nameSnapshot} (${formatJod(units * l.priceSnapshot)}) من ${order.label}.${paidNote}`,
-      action: () => removeLineUnits(l, units, user!.id!),
+      action: () => ownerEdit({ op: 'line-remove', lineId: l.id!, units }, user!.id!),
     })
 
   return (
@@ -332,7 +340,7 @@ function OrderEditor({ order: initial, onClose }: { order: Order; onClose: () =>
               )}
             </span>
             <span className="num">{formatJod(l.priceSnapshot * l.qty)}</span>
-            {!isVoid && !remote && (
+            {!isVoid && (
               <span className="flex gap-1">
                 {l.qty > 1 && (
                   <button
@@ -374,23 +382,19 @@ function OrderEditor({ order: initial, onClose }: { order: Order; onClose: () =>
         <>
           <h3 className="mb-2 font-bold text-green">الدفعات</h3>
           <PaymentsList orderId={order.id!} />
-          {remote ? (
-            <p className="mt-4 rounded-xl bg-gold/30 px-4 py-2 text-center text-sm">تعديل الطلبات والإلغاء من التابلت بس.</p>
-          ) : (
-            <button
+          <button
               type="button"
               onClick={() =>
                 setConfirm({
                   title: `إلغاء ${order.label}؟`,
                   text: 'الطلب بيضل بيومه بس ما بينحسب بالمبيعات، ودفعاته بتطلع من الدخل والدرج.',
-                  action: () => voidOrderAudited(order, user!.id!),
+                  action: () => ownerEdit({ op: 'order-void', orderId: order.id! }, user!.id!),
                 })
               }
               className="mt-4 h-12 w-full rounded-xl font-medium text-red-800 ring-1 ring-red-800/30 active:bg-red-700/10"
             >
               إلغاء الطلب
             </button>
-          )}
         </>
       )}
 
@@ -414,7 +418,7 @@ function ExpenseEditor({ expense, onClose }: { expense: Expense; onClose: () => 
 
   async function save() {
     try {
-      await updateExpenseAudited(expense, { amount: toFils(amount || 0), reason }, user!.id!)
+      await ownerEdit({ op: 'expense-edit', expenseId: expense.id!, amount: toFils(amount || 0), reason }, user!.id!)
       onClose()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'ما زبط')
@@ -454,7 +458,7 @@ function ExpenseEditor({ expense, onClose }: { expense: Expense; onClose: () => 
         <Confirm
           title="حذف المصروف؟"
           text={`«${expense.reason}» ${formatJod(expense.amount)} رح ينحذف، والحذف بينحفظ بسجل التعديلات.`}
-          action={() => deleteExpenseAudited(expense, user!.id!)}
+          action={() => ownerEdit({ op: 'expense-delete', expenseId: expense.id! }, user!.id!)}
           onDone={() => {
             setConfirmDelete(false)
             onClose()

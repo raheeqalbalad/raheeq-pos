@@ -156,6 +156,7 @@ export async function updateExpenseAudited(expense: Expense, changes: { amount?:
       kind: 'expense-edit',
       byUserId,
       shiftId: expense.shiftId,
+      expenseId: expense.id,
       summary: `عدّل مصروف «${expense.reason}» ${formatJod(expense.amount)} ← «${after.reason}» ${formatJod(after.amount)}`,
       before: { amount: expense.amount, reason: expense.reason },
       after,
@@ -170,6 +171,7 @@ export async function deleteExpenseAudited(expense: Expense, byUserId: number) {
       kind: 'expense-delete',
       byUserId,
       shiftId: expense.shiftId,
+      expenseId: expense.id,
       summary: `حذف مصروف «${expense.reason}» ${formatJod(expense.amount)}`,
       before: { ...expense },
     })

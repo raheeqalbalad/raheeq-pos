@@ -14,6 +14,7 @@ import CloudSection from '../components/CloudSection'
 import { APP_VERSION, clearErrors, readErrors } from '../lib/errorLog'
 import { timeLabelOf } from '../lib/time'
 import MenuQrSection from '../components/MenuQrSection'
+import TablesEditor from '../components/TablesEditor'
 
 const inputClass = 'h-12 min-w-0 rounded-xl bg-white px-3 text-lg ring-1 ring-cream-200 outline-none focus:ring-2 focus:ring-green'
 
@@ -32,6 +33,7 @@ export default function SettingsScreen() {
         {cliq && <CliqForm initial={cliq} />}
         {water && <WaterForm initial={water} />}
         {checklists && <ChecklistsForm initial={checklists} />}
+        <TablesEditor />
         {floor && <FloorForm initial={floor} />}
         {goal && <GoalForm initial={goal} />}
         <Diagnostics />
@@ -252,7 +254,7 @@ function FloorForm({ initial }: { initial: FloorSettings }) {
 
   return (
     <section className="rounded-3xl bg-white/70 p-5 ring-1 ring-cream-200">
-      <h2 className="mb-1 font-display text-xl text-green">الطاولات</h2>
+      <h2 className="mb-1 font-display text-xl text-green">تنبيهات الطاولات</h2>
       <p className="mb-4 text-sm text-ink/60">تنبيهات شاشة الطاولات للموظف.</p>
       <div className="flex flex-col gap-3">
         <label className="flex flex-wrap items-center gap-2">

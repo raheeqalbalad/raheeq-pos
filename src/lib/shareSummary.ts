@@ -36,6 +36,10 @@ export async function summaryText(shifts: Shift[]): Promise<string> {
   if (staff.length) lines.push(`👤 ${single ? 'الموظف' : 'الموظفين'}: ${staff.join('، ')}`)
   const guests = t.men + t.women + t.kids
   lines.push(`🧾 الطلبات: ${t.orders}${guests ? ` · 👥 الزباين: ${guests}` : ''}`)
+  if (t.loyalty || t.manual) {
+    const parts = [t.loyalty ? `ولاء ${formatJod(t.loyalty)}` : '', t.manual ? `يدوية ${formatJod(t.manual)}` : ''].filter(Boolean)
+    lines.push(`🏷️ مجموع الخصومات: ${formatJod(t.loyalty + t.manual)}${parts.length > 1 ? ` (${parts.join(' · ')})` : ''} — منقوصة من الدخل`)
+  }
 
   lines.push('')
   lines.push(`💰 الدخل: ${formatJod(t.sales)}`)
@@ -43,10 +47,6 @@ export async function summaryText(shifts: Shift[]): Promise<string> {
   lines.push(`• كليك: ${formatJod(t.cliq)}`)
   for (const r of report.cliqSplit) lines.push(`   - ${r.name}${r.isStaff ? ' (على حساب الموظف)' : ''}: ${formatJod(r.amount)}`)
   if (t.cliqTransfer) lines.push(`🔁 كليك رح يحوّله الموظف لصاحب المحل: ${formatJod(t.cliqTransfer)}`)
-  if (t.loyalty || t.manual) {
-    const parts = [t.loyalty ? `ولاء ${formatJod(t.loyalty)}` : '', t.manual ? `يدوية ${formatJod(t.manual)}` : ''].filter(Boolean)
-    lines.push(`🏷️ الخصومات: ${parts.join(' · ')}`)
-  }
   lines.push(
     `📤 المصاريف: ${formatJod(t.expenses + t.outside)}${t.outside ? ` (درج ${formatJod(t.expenses)} · من برا ${formatJod(t.outside)})` : ''}`,
   )

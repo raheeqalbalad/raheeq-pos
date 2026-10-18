@@ -1,7 +1,8 @@
 import { db } from '../../db/db'
 import { cloud, cloudError, myRole } from './client'
 import { deviceMode, setDeviceMode, setViewerRole, viewerRole } from './device'
-import { checkSubmitted, clearRemoteQueues, flushOutbox, withCloudWrites } from './remote'
+import { checkSubmitted, clearRemoteQueues, flushOutbox, remoteEdits, withCloudWrites } from './remote'
+import { clearPreviews } from '../ownerEdits'
 
 // الدخول بالإيميل (تلفون أو لابتوب): بيسحب نسخة من السحابة لقاعدة محلية عشان نفس الشاشات تشتغل عليها.
 // ما بيرفع بيانات أبدًا (المالك بيبعت طلبات تعديل للمنيو والإعدادات بس، شوف remote.ts).
@@ -83,7 +84,11 @@ export async function linkViewer(email: string, password: string) {
 export async function refreshViewer() {
   if (viewerRole() === 'owner') {
     await flushOutbox()
-    await checkSubmitted()
+    // التابلت رفض تعديل: النسخة عندي فيها التعديل، فبنسحب كل إشي من جديد
+    if (await checkSubmitted()) return apply(await fetchSince(null), true)
+    // كل التعديلات وصلت: النسخ المؤقتة بتنشال، واللي طبّقه التابلت بيوصل مع السحب
+    const pending = remoteEdits.get()
+    if (!pending.queued && !pending.waiting) await clearPreviews()
   }
   const since = localStorage.getItem(LAST_PULL)
   await apply(await fetchSince(since), false)

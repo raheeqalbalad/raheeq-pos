@@ -1,7 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db/db'
 import type { PaymentMethod } from '../db/types'
-import { correctPayment } from '../lib/orders'
+import { ownerEdit } from '../lib/ownerEdits'
 import { formatJod } from '../lib/money'
 import { useOwnerGate } from '../lib/useOwnerGate'
 import { timeLabelOf as timeLabel } from '../lib/time'
@@ -49,7 +49,7 @@ export default function PaymentsList({ orderId }: { orderId: number }) {
                 onClick={() =>
                   requireOwner(
                     'تصحيح الدفعة',
-                    (ownerId) => correctPayment(p, ownerId),
+                    (ownerId) => void ownerEdit({ op: 'payment-method', paymentId: p.id!, to: p.method === 'cash' ? 'cliq' : 'cash' }, ownerId),
                     <>
                       تحويل <span className="num">{formatJod(p.amount)}</span> من {METHOD_LABEL[p.method]} لـ {other}
                     </>,
