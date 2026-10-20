@@ -1,6 +1,6 @@
 import Dexie, { type Table } from 'dexie'
 import { db } from '../../db/db'
-import { cloud, cloudError, myRole } from './client'
+import { cloud, cloudError, cloudFail, myRole } from './client'
 import { deviceId, deviceMode, setDeviceMode } from './device'
 import { buildPublicMenu } from './publicMenu'
 import { OP_TBL, REMOTE_EDITABLE } from './remote'
@@ -155,7 +155,7 @@ async function upsert(rows: { tbl: string; id: string; data: unknown; deleted: b
     const { error } = await cloud()
       .from('records')
       .upsert(rows.slice(i, i + BATCH), { onConflict: 'tbl,id' })
-    if (error) throw new Error(cloudError(error.message))
+    if (error) throw cloudFail('رفع البيانات', error.message)
   }
 }
 
@@ -207,7 +207,7 @@ async function pushOnce(): Promise<number> {
   const menuHash = hashOf(JSON.stringify(menu))
   if ((await syncDb.meta.get(MENU_HASH))?.value !== menuHash) {
     const { error } = await cloud().from('public_menu').upsert({ id: 1, data: menu })
-    if (error) throw new Error(cloudError(error.message))
+    if (error) throw cloudFail('المنيو العام', error.message)
     await syncDb.meta.put({ key: MENU_HASH, value: menuHash })
   }
   return uploaded
@@ -269,7 +269,7 @@ async function applyRemoteEdits() {
   if (error) {
     // التحديث ٢ لسا ما انلصق بـ Supabase: المزامنة العادية بتكمّل
     if (/remote_edits|schema cache/i.test(error.message)) return
-    throw new Error(cloudError(error.message))
+    throw cloudFail('تعديلات المالك', error.message)
   }
   const done = new Set(await appliedLocally())
   const edits = ((data ?? []) as { id: number; tbl: string; rec_id: string; data: Record<string, unknown> | null; deleted: boolean }[]).filter(
@@ -333,7 +333,7 @@ async function ownerIdFor(by: number | undefined): Promise<number> {
 /** بيعلّم بالسحابة إنه التابلت طبّق هالتعديلات، وبيشيلهم من القائمة المحلية. */
 async function markApplied(ids: number[]) {
   const { error } = await cloud().from('remote_edits').update({ applied_at: new Date().toISOString() }).in('id', ids)
-  if (error) throw new Error(cloudError(error.message))
+  if (error) throw cloudFail('تعليم التعديلات', error.message)
   const left = (await appliedLocally()).filter((id) => !ids.includes(id))
   await syncDb.meta.put({ key: APPLIED_KEY, value: left })
 }

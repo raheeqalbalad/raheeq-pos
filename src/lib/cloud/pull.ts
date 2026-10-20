@@ -1,5 +1,5 @@
 import { db } from '../../db/db'
-import { cloud, cloudError, myRole } from './client'
+import { cloud, cloudError, cloudFail, myRole } from './client'
 import { deviceMode, setDeviceMode, setViewerRole, viewerRole } from './device'
 import { checkSubmitted, clearRemoteQueues, flushOutbox, remoteEdits, withCloudWrites } from './remote'
 import { clearPreviews } from '../ownerEdits'
@@ -31,7 +31,7 @@ async function fetchSince(since: string | null): Promise<CloudRecord[]> {
     let q = cloud().from('records').select('tbl,id,data,deleted,updated_at').neq('tbl', '_meta')
     if (since) q = q.gt('updated_at', since)
     const { data, error } = await q.order('updated_at').order('tbl').order('id').range(from, from + PAGE - 1)
-    if (error) throw new Error(cloudError(error.message))
+    if (error) throw cloudFail('سحب البيانات', error.message)
     all.push(...((data ?? []) as CloudRecord[]))
     if (!data || data.length < PAGE) return all
   }
@@ -82,6 +82,9 @@ export async function linkViewer(email: string, password: string) {
 
 /** بيبعت تعديلات المالك المستنية، وبيجيب اللي تغيّر من آخر مرة. */
 export async function refreshViewer() {
+  // الدخول انتهى (أو انمسح): بدون هاد، الطلبات بتروح بلا حساب والسحابة بترفضها كأنها «بلا صلاحية»
+  const { data: auth } = await cloud().auth.getSession()
+  if (!auth.session) throw new Error('انتهى الدخول على هالجهاز، اكبس «خروج» وادخل من جديد')
   if (viewerRole() === 'owner') {
     await flushOutbox()
     // التابلت رفض تعديل: النسخة عندي فيها التعديل، فبنسحب كل إشي من جديد

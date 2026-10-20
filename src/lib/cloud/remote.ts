@@ -1,6 +1,6 @@
 import type { DBCore, DBCoreMutateRequest, DBCoreTable, Middleware } from 'dexie'
 import { db } from '../../db/db'
-import { cloud, cloudError } from './client'
+import { cloud, cloudError, cloudFail } from './client'
 import { deviceMode, isRemoteOwner } from './device'
 
 // الدخول بالإيميل من بعيد (تلفون أو لابتوب): القاعدة المحلية هون نسخة من السحابة.
@@ -93,7 +93,7 @@ async function sendOutbox() {
     const pending = load<Edit>(OUTBOX)
     if (!pending.length) return
     const { data, error } = await cloud().from('remote_edits').insert(pending).select('id')
-    if (error) throw new Error(cloudError(error.message))
+    if (error) throw cloudFail('إرسال التعديلات', error.message)
     // اللي انبعت بينشال من الطابور (واللي انضاف وقت الإرسال بيضل)
     const sent = new Set(pending.map((e) => JSON.stringify(e)))
     save(OUTBOX, load<Edit>(OUTBOX).filter((e) => !sent.has(JSON.stringify(e))))
@@ -112,7 +112,7 @@ export async function checkSubmitted(): Promise<boolean> {
   if (!ids.length) return false
   // * عشان عمود error (التحديث ٣) إذا لسا ما انضاف ما يكسّر الاستعلام
   const { data, error } = await cloud().from('remote_edits').select('*').in('id', ids)
-  if (error) throw new Error(cloudError(error.message))
+  if (error) throw cloudFail('حالة التعديلات', error.message)
   const rows = (data ?? []) as { id: number; applied_at: string | null; error?: string | null }[]
   const waiting = new Set(rows.filter((r) => !r.applied_at).map((r) => r.id))
   const rejected = rows.filter((r) => r.applied_at && r.error)

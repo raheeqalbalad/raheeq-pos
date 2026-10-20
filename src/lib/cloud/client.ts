@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { CLOUD_KEY, CLOUD_URL, cloudConfigured } from './config'
+import { logError } from '../errorLog'
 
 let client: SupabaseClient | null = null
 
@@ -26,6 +27,15 @@ export async function myRole(): Promise<CloudRole | null> {
   const { data, error } = await cloud().from('members').select('role').eq('user_id', auth.user.id).maybeSingle()
   if (error) throw new Error(cloudError(error.message))
   return (data?.role as CloudRole | undefined) ?? null
+}
+
+/**
+ * غلط من السحابة بخطوة معيّنة: الرسالة الأصلية بتنحفظ بسجل الأخطاء (الإعدادات ← التشخيص)،
+ * واللي بيبيّن فوق بيقول وين صار الغلط.
+ */
+export function cloudFail(step: string, message: string): Error {
+  logError(message, `السحابة · ${step}`)
+  return new Error(`${step}: ${cloudError(message)}`)
 }
 
 /** رسالة خطأ مفهومة بالعربي */
