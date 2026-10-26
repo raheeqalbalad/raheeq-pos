@@ -71,7 +71,8 @@ const MENU: { name: string; seasonal?: boolean; items: ItemSeed[] }[] = [
     items: [
       ['شاي', 1.5],
       ['بريق شاي', 2],
-      ['شاي بالحليب / كرك', 2],
+      ['شاي بحليب', 2],
+      ['شاي بكرك', 1.5],
       ['أعشاب', 1.5],
       ['عنّاب', 1.5],
       ['قرفة', 1.5],
@@ -196,26 +197,43 @@ export async function seedIfEmpty() {
   })
 }
 
-const ADDED_KEY = 'menu-added-teapot'
+/** بيضيف صنف بقسم «سخن» بعد صنف معيّن (إذا مش موجود). */
+async function addHotItemAfter(name: string, price: number, after: string) {
+  const hot = (await db.categories.toArray()).find((c) => c.name === 'سخن')
+  if (!hot) return
+  const items = await db.items.where('categoryId').equals(hot.id!).sortBy('sort')
+  if (items.some((i) => i.name === name)) return
+  const prev = items.find((i) => i.name === after)
+  const sort = prev ? prev.sort + 1 : (items.at(-1)?.sort ?? -1) + 1
+  for (const i of items) if (i.sort >= sort) await db.items.update(i.id!, { sort: i.sort + 1 })
+  await db.items.add({ categoryId: hot.id!, name, price: toFils(price), active: true, isSeasonal: false, sort, options: [] })
+}
 
 /**
- * أصناف انضافت للمنيو بعد ما التابلت اشتغل (مرة وحدة بس): «بريق شاي» بقسم «سخن» بعد «شاي».
- * إذا المالك حذفه بعدين ما بيرجع. لازم تشتغل بعد تعبئة المنيو الأولى.
+ * تعديلات على المنيو بعد ما التابلت اشتغل، كل وحدة مرة وحدة بس (إذا المالك غيّرها بعدين ما بترجع).
+ * لازم تشتغل بعد تعبئة المنيو الأولى.
  */
+const MENU_CHANGES: { key: string; run: () => Promise<void> }[] = [
+  // «بريق شاي» 2.00 بعد «شاي»
+  { key: 'menu-added-teapot', run: () => addHotItemAfter('بريق شاي', 2, 'شاي') },
+  // «شاي بالحليب / كرك» صار صنفين: «شاي بحليب» 2.00 (نفس الصنف، فمبيعاته القديمة بتضل عليه) و«شاي بكرك» 1.50
+  {
+    key: 'menu-split-karak',
+    run: async () => {
+      const old = (await db.items.toArray()).find((i) => i.name === 'شاي بالحليب / كرك')
+      if (old) await db.items.update(old.id!, { name: 'شاي بحليب', price: toFils(2) })
+      await addHotItemAfter('شاي بكرك', 1.5, 'شاي بحليب')
+    },
+  },
+]
+
 export async function ensureMenuAdditions() {
   await db.transaction('rw', ['categories', 'items', 'settings'], async () => {
-    if (await db.settings.get(ADDED_KEY)) return
-    const hot = (await db.categories.toArray()).find((c) => c.name === 'سخن')
-    if (hot) {
-      const items = await db.items.where('categoryId').equals(hot.id!).sortBy('sort')
-      if (!items.some((i) => i.name === 'بريق شاي')) {
-        const tea = items.find((i) => i.name === 'شاي')
-        const sort = tea ? tea.sort + 1 : (items.at(-1)?.sort ?? -1) + 1
-        for (const i of items) if (i.sort >= sort) await db.items.update(i.id!, { sort: i.sort + 1 })
-        await db.items.add({ categoryId: hot.id!, name: 'بريق شاي', price: toFils(2), active: true, isSeasonal: false, sort, options: [] })
-      }
+    for (const change of MENU_CHANGES) {
+      if (await db.settings.get(change.key)) continue
+      await change.run()
+      await db.settings.put({ key: change.key, value: true })
     }
-    await db.settings.put({ key: ADDED_KEY, value: true })
   })
 }
 

@@ -73,6 +73,19 @@ export async function closeShift(shiftId: number, closedBy: number, leftInDrawer
 export const leftInDrawerOf = (s: Shift) => s.leftInDrawer ?? s.countedCash
 
 /** المسحوب من الدرج عند التسكير = المعدود − المتروك. */
+/** المالك علّم (أو شال العلامة) إنه استلم الكاش المسحوب أو تحويل الكليك ليوم شغل. */
+export async function setReceived(shiftId: number, kind: 'cash' | 'cliq', received: boolean, by: number) {
+  await db.transaction('rw', 'shifts', async () => {
+    const shift = await db.shifts.get(shiftId)
+    if (!shift) throw new Error('يوم الشغل مش موجود')
+    if (!shift.closedAt) throw new Error('الشيفت لسا مفتوح')
+    const next = { ...shift.received }
+    if (received) next[kind] ??= { by, at: Date.now() }
+    else delete next[kind]
+    await db.shifts.update(shiftId, { received: next })
+  })
+}
+
 export const withdrawnOf = (s: Shift) =>
   s.countedCash === undefined ? undefined : s.countedCash - (leftInDrawerOf(s) ?? s.countedCash)
 

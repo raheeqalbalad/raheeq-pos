@@ -11,8 +11,10 @@ import {
   itemProfit,
   monthKey,
   monthLabel,
+  receivedStatus,
   wipeSalesData,
   type HourRow,
+  type ReceivedStatus,
   type ItemRow,
   type Report,
 } from '../lib/reports'
@@ -151,11 +153,27 @@ function Card({ title, children }: { title: string; children: ReactNode }) {
   )
 }
 
+const RECEIVED_LABEL: Record<ReceivedStatus['state'], string> = {
+  open: '—',
+  none: '—',
+  done: '✓',
+  partial: 'جزء',
+  waiting: 'لسا',
+}
+
 function ReportBody({ report, mode }: { report: Report; mode: Mode }) {
   const t = report.totals
   const edits = report.days.reduce((n, d) => n + d.edits, 0)
+  const notReceived = report.days.map(receivedStatus).filter((r) => r.cash + r.cliq > 0)
+  const owed = notReceived.reduce((s, r) => s + r.cash + r.cliq, 0)
   return (
     <>
+      {mode !== 'day' && notReceived.length > 0 && (
+        <p className="rounded-2xl bg-red-800/10 px-4 py-2 text-sm font-bold text-red-900">
+          لسا ما استلمت مصاري <span className="num">{notReceived.length}</span> يوم شغل، مجموعها <span className="num">{formatJod(owed)}</span>. بتعلّم
+          الاستلام من «سجل الأيام».
+        </p>
+      )}
       {edits > 0 && (
         <p className="rounded-2xl bg-gold/30 px-4 py-2 text-sm text-green">
           <span className="rounded-md bg-gold/60 px-2 py-0.5 text-xs font-bold">معدّل</span> في <span className="num font-bold">{edits}</span> تعديل على{' '}
@@ -271,7 +289,7 @@ function ReportBody({ report, mode }: { report: Report; mode: Mode }) {
       {mode !== 'day' && (
         <Card title="دخل كل يوم شغل">
           <Table
-            head={['اليوم', 'كاش', 'كليك', 'الدخل', 'مصاريف', 'الصافي', 'زباين', 'فرق الدرج', 'المسحوب']}
+            head={['اليوم', 'كاش', 'كليك', 'الدخل', 'مصاريف', 'الصافي', 'زباين', 'فرق الدرج', 'المسحوب', 'استلمت؟']}
             rows={report.days.map((d) => [
               `${dayLabel(d.shift.openedAt)}${d.shift.closedAt ? (afterMidnightNote(d.shift) ? ' (سكّر بعد نص الليل)' : '') : ' (مفتوح)'}${d.edits ? ' · معدّل' : ''}`,
               formatJod(d.cash),
@@ -282,6 +300,7 @@ function ReportBody({ report, mode }: { report: Report; mode: Mode }) {
               String(d.men + d.women + d.kids || '—'),
               d.drawerDiff === undefined ? '—' : d.drawerDiff === 0 ? '✓' : `${d.drawerDiff > 0 ? '+' : '−'}${formatJod(Math.abs(d.drawerDiff))}`,
               d.withdrawn === undefined ? '—' : formatJod(d.withdrawn),
+              RECEIVED_LABEL[receivedStatus(d).state],
             ])}
           />
         </Card>

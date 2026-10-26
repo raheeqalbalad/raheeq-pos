@@ -244,6 +244,13 @@ export interface Shift {
   countedBy?: number
   /** اللي انترك بالدرج للشيفت الجاي. الباقي (المعدود − المتروك) انسحب. */
   leftInDrawer?: number
+  /** المالك علّم إنه استلم مصاري اليوم: الكاش المسحوب، وتحويل الكليك من الموظف */
+  received?: { cash?: ReceivedMark; cliq?: ReceivedMark }
+}
+
+export interface ReceivedMark {
+  by: number
+  at: number
 }
 
 /**

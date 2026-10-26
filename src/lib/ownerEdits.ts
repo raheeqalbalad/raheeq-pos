@@ -2,6 +2,7 @@ import { db } from '../db/db'
 import type { CafeTable, PaymentMethod } from '../db/types'
 import { deleteExpenseAudited, removeLineUnits, updateExpenseAudited, voidOrderAudited } from './audit'
 import { correctPayment } from './orders'
+import { setReceived } from './shift'
 import { deleteTable, saveTable } from './tables'
 import { isRemoteOwner } from './cloud/device'
 import { enqueueOp, remoteId, withCloudWrites } from './cloud/remote'
@@ -20,6 +21,7 @@ export type OwnerEdit =
   | { op: 'payment-method'; paymentId: number; to: PaymentMethod }
   | { op: 'table-save'; table: CafeTable }
   | { op: 'table-delete'; tableId: number }
+  | { op: 'day-received'; shiftId: number; kind: 'cash' | 'cliq'; received: boolean }
 
 /** كل الجداول اللي ممكن تعديل يلمسها (التعديل كله بمعاملة وحدة) */
 const TABLES = ['orders', 'orderLines', 'payments', 'paymentCorrections', 'shifts', 'expenses', 'auditLog', 'settings', 'cafeTables']
@@ -56,6 +58,8 @@ async function run(edit: OwnerEdit, by: number) {
       return saveTable(edit.table, by)
     case 'table-delete':
       return deleteTable(edit.tableId, by)
+    case 'day-received':
+      return setReceived(edit.shiftId, edit.kind, edit.received, by)
   }
 }
 

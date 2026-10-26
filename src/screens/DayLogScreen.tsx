@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db/db'
 import type { Expense, Order, OrderLine, Shift } from '../db/types'
-import { allShifts, buildReport, dayLabel } from '../lib/reports'
+import { allShifts, buildReport, dayLabel, receivedStatus, type DayRow } from '../lib/reports'
 import { ownerEdit } from '../lib/ownerEdits'
 import { expenseSource } from '../lib/shift'
 import { orderDue, optionsLabel } from '../lib/orders'
@@ -127,6 +127,7 @@ function DayLog({ shifts }: { shifts: Shift[] }) {
     const editedExpenses = new Set(audit.map((a) => a.expenseId).filter(Boolean))
     return {
       totals: report.totals,
+      days: report.days,
       rows: orders.map((o) => ({
         order: o,
         total: orderDue(lines.filter((l) => l.orderId === o.id), o),
@@ -137,7 +138,7 @@ function DayLog({ shifts }: { shifts: Shift[] }) {
       audit: audit.sort((a, b) => b.at - a.at),
       names: new Map(users.map((u) => [u.id!, u.name])),
     }
-  }, [key, shifts.map((s) => s.closedAt ?? '').join(',')])
+  }, [key, shifts.map((s) => `${s.closedAt ?? ''}${JSON.stringify(s.received ?? '')}`).join(',')])
 
   const [selected, setSelected] = useState<Order | null>(null)
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null)
@@ -164,6 +165,8 @@ function DayLog({ shifts }: { shifts: Shift[] }) {
           </div>
         ))}
       </div>
+
+      {!multi && data.days[0] && <ReceivedCard day={data.days[0]} names={data.names} />}
 
       {!multi && !!(shifts[0].openChecks?.length || shifts[0].closeChecks?.length) && (
         <section className="grid gap-4 rounded-3xl bg-white/70 p-4 ring-1 ring-cream-200 md:grid-cols-2">
@@ -266,6 +269,68 @@ function DayLog({ shifts }: { shifts: Shift[] }) {
       {selected && <OrderEditor order={selected} onClose={() => setSelected(null)} />}
       {editingExpense && <ExpenseEditor expense={editingExpense} onClose={() => setEditingExpense(null)} />}
     </>
+  )
+}
+
+/** استلام مصاري اليوم: الكاش اللي انسحب من الدرج، وتحويل الكليك اللي على حساب الموظف. للمالك بس. */
+function ReceivedCard({ day, names }: { day: DayRow; names: Map<number, string> }) {
+  const { user } = useSession()
+  const [error, setError] = useState('')
+  const status = receivedStatus(day)
+  const shift = day.shift
+  if (status.state === 'open')
+    return <p className="rounded-2xl bg-cream-200 px-4 py-3 text-sm text-ink/70">الشيفت لسا مفتوح: استلام مصاري اليوم بتعلّمه بعد التسكير.</p>
+
+  const rows = [
+    { kind: 'cash' as const, label: 'الكاش المسحوب من الدرج', amount: Math.max(0, day.withdrawn ?? 0), done: 'استلمت ✓', todo: 'استلمته' },
+    { kind: 'cliq' as const, label: `كليك لازم يحوّله ${names.get(shift.staffId) ?? 'الموظف'}`, amount: day.cliqTransfer, done: 'وصلني ✓', todo: 'وصلني' },
+  ].filter((r) => r.amount > 0)
+
+  async function toggle(kind: 'cash' | 'cliq', received: boolean) {
+    setError('')
+    try {
+      await ownerEdit({ op: 'day-received', shiftId: shift.id!, kind, received }, user!.id!)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'ما زبط')
+    }
+  }
+
+  return (
+    <section
+      className={`rounded-3xl p-4 ring-1 ${status.state === 'done' ? 'bg-green/10 ring-green/20' : status.state === 'none' ? 'bg-white/70 ring-cream-200' : 'bg-red-800/10 ring-red-800/20'}`}
+    >
+      <h2 className="mb-2 font-display text-xl text-green">
+        استلام مصاري اليوم {status.state === 'done' && '✓'}
+      </h2>
+      {!rows.length && <p className="text-sm text-ink/60">ما في مصاري للاستلام بهاليوم (ما انسحب كاش وما في كليك لازم يتحوّل).</p>}
+      <ul className="flex flex-col gap-2">
+        {rows.map((r) => {
+          const mark = shift.received?.[r.kind]
+          return (
+            <li key={r.kind} className="flex flex-wrap items-center gap-3 rounded-xl bg-white px-3 py-2 ring-1 ring-cream-200">
+              <span className="flex-1">
+                <span className="font-bold text-green">{r.label}</span>
+                {mark && (
+                  <span className="block text-xs text-ink/50">
+                    علّمه {names.get(mark.by)} · {dayLabel(mark.at)} <span className="num">{timeLabelOf(mark.at)}</span>
+                  </span>
+                )}
+              </span>
+              <span className="num font-display text-lg text-green">{formatJod(r.amount)}</span>
+              <button
+                type="button"
+                onClick={() => toggle(r.kind, !mark)}
+                className={`h-12 shrink-0 rounded-xl px-4 font-bold ${mark ? 'bg-green text-cream' : 'bg-gold text-green active:bg-gold-600'}`}
+              >
+                {mark ? r.done : r.todo}
+              </button>
+            </li>
+          )
+        })}
+      </ul>
+      {rows.some((r) => shift.received?.[r.kind]) && <p className="mt-2 text-xs text-ink/50">كبسة على «✓» بتشيل العلامة إذا علّمت بالغلط.</p>}
+      {error && <p className="mt-2 text-center font-bold text-red-700">{error}</p>}
+    </section>
   )
 }
 

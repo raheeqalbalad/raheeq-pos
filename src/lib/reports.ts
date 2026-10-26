@@ -79,6 +79,27 @@ export interface DayRow extends Totals {
   edits: number
 }
 
+export interface ReceivedStatus {
+  /** الكاش المسحوب لسا ما استلمه المالك */
+  cash: number
+  /** تحويل الكليك من الموظف لسا ما وصل */
+  cliq: number
+  /** none = ما في مصاري للاستلام (أو الشيفت مفتوح)، done = استلم كل إشي */
+  state: 'open' | 'none' | 'done' | 'partial' | 'waiting'
+}
+
+/** شو لسا ما استلمه المالك من مصاري يوم الشغل */
+export function receivedStatus(d: DayRow): ReceivedStatus {
+  if (!d.shift.closedAt) return { cash: 0, cliq: 0, state: 'open' }
+  const wantCash = Math.max(0, d.withdrawn ?? 0)
+  const wantCliq = Math.max(0, d.cliqTransfer)
+  const cash = d.shift.received?.cash ? 0 : wantCash
+  const cliq = d.shift.received?.cliq ? 0 : wantCliq
+  const want = (wantCash > 0 ? 1 : 0) + (wantCliq > 0 ? 1 : 0)
+  const left = (cash > 0 ? 1 : 0) + (cliq > 0 ? 1 : 0)
+  return { cash, cliq, state: !want ? 'none' : !left ? 'done' : left < want ? 'partial' : 'waiting' }
+}
+
 /** فروقات الدرج لموظف بشهر (الفرق بينسجّل على الموظف اللي فاتح الشيفت) */
 export interface DrawerStaffRow {
   month: string
