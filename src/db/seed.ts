@@ -91,25 +91,27 @@ const MENU: { name: string; seasonal?: boolean; items: ItemSeed[] }[] = [
       ['اسبريسو سنقل', 1.5],
       ['اسبريسو دبل', 2],
       ['أمريكانو', 2, { options: [HOT_COLD] }],
-      ['موكا', 2],
-      ['آيس موكا', 2.5],
       ['كابتشينو', 2],
       ['موكاتشينو', 2],
-      ['فرابتشينو', 2.5],
     ],
   },
   {
     name: 'لاتيه',
     items: [
-      'كلاسيك لاتيه',
-      'سبانيش لاتيه',
-      'لاتيه فانيلا',
-      'لاتيه كراميل',
-      'ماتشا لاتيه',
-      'لاتيه بندق',
-      'لاتيه مكياتو',
-      'كراميل مكياتو',
-    ].map((n): ItemSeed => [n, 2.5, { options: [HOT_COLD] }]),
+      ...[
+        'كلاسيك لاتيه',
+        'سبانيش لاتيه',
+        'لاتيه فانيلا',
+        'لاتيه كراميل',
+        'ماتشا لاتيه',
+        'لاتيه بندق',
+        'لاتيه مكياتو',
+        'كراميل مكياتو',
+      ].map((n): ItemSeed => [n, 2.5, { options: [HOT_COLD] }]),
+      ['هوت موكا', 2.5],
+      ['آيس موكا', 2],
+      ['فرابتشينو', 2.5],
+    ],
   },
   {
     name: 'بارد',
@@ -223,6 +225,26 @@ const MENU_CHANGES: { key: string; run: () => Promise<void> }[] = [
       const old = (await db.items.toArray()).find((i) => i.name === 'شاي بالحليب / كرك')
       if (old) await db.items.update(old.id!, { name: 'شاي بحليب', price: toFils(2) })
       await addHotItemAfter('شاي بكرك', 1.5, 'شاي بحليب')
+    },
+  },
+  // الموكا والآيس موكا والفرابتشينو انتقلوا لقسم «لاتيه» (نفس الأصناف، فمبيعاتهم القديمة بتضل عليهم):
+  // «موكا» صار «هوت موكا» 2.50، «آيس موكا» 2.00، «فرابتشينو» زي ما هو
+  {
+    key: 'menu-mocha-to-latte',
+    run: async () => {
+      const latte = (await db.categories.toArray()).find((c) => c.name === 'لاتيه')
+      if (!latte) return
+      const all = await db.items.toArray()
+      let sort = Math.max(-1, ...all.filter((i) => i.categoryId === latte.id).map((i) => i.sort)) + 1
+      const moves: [string[], { name: string; price?: number }][] = [
+        [['موكا', 'هوت موكا'], { name: 'هوت موكا', price: toFils(2.5) }],
+        [['آيس موكا'], { name: 'آيس موكا', price: toFils(2) }],
+        [['فرابتشينو'], { name: 'فرابتشينو' }],
+      ]
+      for (const [names, change] of moves) {
+        const item = all.find((i) => names.includes(i.name) && i.categoryId !== latte.id)
+        if (item) await db.items.update(item.id!, { ...change, categoryId: latte.id!, sort: sort++ })
+      }
     },
   },
 ]
